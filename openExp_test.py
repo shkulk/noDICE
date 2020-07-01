@@ -65,7 +65,7 @@ if __name__ == '__main__':
     n_policies = 10
     
     start = time.time()
-    with SequentialEvaluator(dice_sm) as evaluator:
+    with MultiprocessingEvaluator(dice_sm) as evaluator:
         experiments, outcomes = evaluator.perform_experiments(scenarios=n_scenarios,
                                                               policies=n_policies)
     end = time.time()
