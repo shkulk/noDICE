@@ -4,6 +4,7 @@
 # %%
 # DICE SM - Exploration & Global Sensitivity Analysis
 # Shridhar
+# saved 1428
 
 # %% [markdown]
 #   ## Setup & Initialisation of levers and uncertainties
@@ -88,22 +89,18 @@ from sklearn import preprocessing
 import numpy as np
 x = experiments
 # outcome is nd-array, PRIM needs 1D
-y = outcomes
-# y = np.amax(outcomes['Atmospheric Temperature'], axis =1) 
+
+# y = outcomes['Atmospheric Temperature']
+y = np.amax(outcomes['Atmospheric Temperature'], axis =1) 
 y
 
 
 # %%
-len(y)
+# len(y)
+y.shape
 
 
 # %%
-
-# y = np.amax(y)
-# # y = y < 3 * 60
-# y
-# len(y)
-
 x.shape
 
 
@@ -112,16 +109,23 @@ x
 
 
 # %%
-classify_prim = outcomes['Atmospheric Temperature']
+results_prim = experiments, outcomes
+results_prim
+
+# classify_prim = 'Atmospheric Temperature'
+# classify_prim = y
+classify_prim = np.amax(outcomes['Atmospheric Temperature'], axis =1) 
+# classify_prim = outcomes['Atmospheric Temperature']
 classify_prim
 
 
 # %%
-prim_setup = prim.setup_prim(x, classify = outcomes['Atmospheric Temperature'], threshold = 0.8,)
+prim_setup = prim.setup_prim(results = results_prim, classify = classify_prim, threshold = 0.8)
+# prim_setup = prim.setup_prim(x, classify = classify_prim, threshold = 0.8,**kwargs)
 
 
 # %%
-prim_alg = prim.Prim(x, y, axis =1)), threshold=0.8, peel_alpha = 0.1)
+prim_alg = prim.Prim(x, y, threshold=0.8, peel_alpha = 0.1)
 box1 = prim_alg.find_box()
 
 
