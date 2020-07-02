@@ -1,9 +1,10 @@
 # DICE - Model
 # version changes over v3:
 #   - revert to Nordhaus' utility fn
-#   - revert to shajee's single year output instead of 
+#   - change outcome type from ArrayOutcome to TimeSeriesOutcome
+
 # consumption and damage growth in mdoel run section as logarithmic fn based on Arrow ea.
-# !! damages are not reduced to per capita like consumption, does it matter in growth?
+# !! damages are not reduced to per capita like consumption, does it matter in damage growth?
 #%%
 
 
@@ -72,7 +73,7 @@ class PyDICE(object):
         samples_cauchy = samples_cauchy[:nsamples]
 
         # extend array with the deterministic value of the nordhaus
-# ask shajee: why is this needed?
+# ask jan/shajee: why is this needed?
         samples_norm = np.append(samples_norm, 2.9)
         samples_lognorm = np.append(samples_lognorm, 2.9)
         samples_cauchy = np.append(samples_cauchy, 2.9)
@@ -91,12 +92,12 @@ class PyDICE(object):
                  decl_back_gr=0.025,
                  limmiu=1.2,
                  fdamage=0,
-                 # levers from Nordhaus(2008) (first draft)
+                 # levers from Nordhaus(2008) (first draft) + my additions
                  sr=0.249,#shridhar: savings rate fixed
                  prtp_con = 0.015, #shridhar: prtp consumption
                  prtp_dam = 0, #shridhar: prtp damage, 
                  emuc = 1.45, #from nordhaus
-                 emdd = 1.45, #equivalent to emuc to sim Nordhaus
+                 emdd = 1.45, # default equivalent to emuc to simulate Nordhaus
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
@@ -214,7 +215,6 @@ class PyDICE(object):
         # else:
         #     self.s = np.array(DICE_OPT.iloc[129]) #shridhar: # todo what does this do?
  # Savings rate (optlrsav = 0.2582781457) from the control file
-    #shridhar: savings rate is specified here, this determines investments & therefore savings
         self.sr = sr
        
         # Initial pure rate of time preference for consumption(0.015)
@@ -547,10 +547,12 @@ class PyDICE(object):
         #Shridhar: I'm changing this from U(C)= C^((1-emuc)-1)/((1-emuc)-1). 
         # https://www.desmos.com/calculator/75baiw84ym
 
+        # self.inst_util_con[0] = (((self.cpc[0])
+        #                       ** (1.0-self.emuc))
+        #                      / (1.0-self.emuc)) - 1.0
         self.inst_util_con[0] = (((self.cpc[0])
-                              ** (1.0-self.emuc))
-                             / (1.0-self.emuc)) - 1.0
-
+                              ** (1.0 - self.emuc) - 1.0)
+                             / (1.0 - self.emuc) - 1.0)
         # discounted utility of consumption
         self.disc_util_con[0] = self.inst_util_con[0] * self.pop[0]
 
@@ -561,7 +563,7 @@ class PyDICE(object):
         self.damage_sdf[0] = 1.00
 
         # Instantaneous disutility 
-        self.inst_disutil_dam[0] = (((self.damages[0]) ** (1.0 - self.emdd))/ (1.0 - self.emdd)) - 1.0
+        self.inst_disutil_dam[0] = (((self.damages[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
 
         # Discounted disutility of damage
         self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.pop[0]
@@ -803,14 +805,14 @@ class PyDICE(object):
 
             # Utility of comsumption
 
-            self.inst_util_con[t] = (((self.cpc[t])** (1.0 - self.emuc))/(1.0 - self.emuc)) - 1.0
+            self.inst_util_con[t] = (((self.cpc[t])** (1.0 - self.emuc) - 1.0)/(1.0 - self.emuc) - 1.0)
 
             self.disc_util_con[t] = self.inst_util_con[t] * self.pop[t] * self.consumption_sdf[t]
 
         ### Disutility of Damage
             self.sdr_dam[t] = prtp_dam + (self.emdd * self.dam_g[t])
             self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep)
-            self.inst_disutil_dam[t] = (self.damages[t] ** (1.0 - self.emdd))/ (1.0 - self.emdd)
+            self.inst_disutil_dam[t] = ((self.damages[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
             self.disc_disutil_dam[t] = self.inst_disutil_dam[t] * self.pop[t]
             # Welfare
             self.welfare[t] = ((self.tstep*self.scale1*np.sum(self.disc_util_con - self.disc_disutil_dam)+self.scale2))
