@@ -1,10 +1,6 @@
 # DICE - Model
-# version changes over PyDICE_190620_1245:
-# consumption and damage growth in mdoel run section as logarithmic fn based on Arrow ea.
-# !! damages are not reduced to per capita like consumption, does it matter in growth?
-#%%
 
-
+# v3.3: corrected the cpc function
 # IMPORT PACKAGES & SET PATH
 import numpy as np
 import pandas as pd
@@ -12,20 +8,16 @@ from scipy.stats import norm, skewnorm, cauchy, lognorm
 import logging
 
 import json
-import sys
 import os
-# pydice_folder = os.path.dirname(os.getcwd())+"\\1_Model"
-pydice_folder = os.path.dirname(os.getcwd()+"\\06_Code")
-sys.path.insert(1, pydice_folder)
 
 
+myfolder = os.path.dirname(os.path.realpath(__file__))
 
 class PyDICE(object):
     """ DICE simulation model:
         tstep: time step/interval
         steps: amount of years looking into the future
-        model_specification: model specification for 'EMA_det', 
-        'EMA_dist' or 'Validation'  
+        model_specification: model specification for 'EMA_disutility' or 'Validation'  
     """
     def __init__(self, tstep=5, steps=60, model_specification="EMA_disutility"):
         self.tstep = tstep					# (in years)
@@ -33,12 +25,15 @@ class PyDICE(object):
         self.startYear = 2010
         self.tperiod = []
         self.model_specification = model_specification
+        
+        # seems hopelesly inefficient 
+        # why not use numpy arrays?
         for i in range(0, self.steps):
             self.tperiod.append((i*self.tstep)+self.startYear)
 
 
-        with open(pydice_folder + '\\ecs_dist_v4.json') as f:
-            d=json.load(f)
+        with open(os.path.join(myfolder, 'ecs_dist_v4.json')) as f:
+            d = json.load(f)
         
         #creating a list from the dist of t2xC02
         np.random.seed(10)
@@ -49,14 +44,15 @@ class PyDICE(object):
 
         samples_norm = np.zeros((0,))
         while samples_norm.shape[0] < nsamples:
-            samples = (norm.rvs(d['norm'][0],d['norm'][1],nsamples))
+            samples = (norm.rvs(d['norm'][0], d['norm'][1],nsamples))
             accepted = samples[(samples >= minb) & (samples <= maxb)]
             samples_norm = np.concatenate((samples_norm, accepted), axis=0)
         samples_norm = samples_norm[:nsamples]
 
         samples_lognorm = np.zeros((0,))
         while samples_lognorm.shape[0] < nsamples:
-            samples = (lognorm.rvs(d['lognorm'][0],d['lognorm'][1],d['lognorm'][2],nsamples))
+            samples = (lognorm.rvs(d['lognorm'][0], d['lognorm'][1], 
+                                   d['lognorm'][2],nsamples))
             accepted = samples[(samples >= minb) & (samples <= maxb)]
             samples_lognorm = np.concatenate((samples_lognorm, accepted), axis=0)
         samples_lognorm = samples_lognorm[:nsamples]
@@ -69,7 +65,7 @@ class PyDICE(object):
         samples_cauchy = samples_cauchy[:nsamples]
 
         # extend array with the deterministic value of the nordhaus
-# ask shajee: why is this needed?
+
         samples_norm = np.append(samples_norm, 2.9)
         samples_lognorm = np.append(samples_lognorm, 2.9)
         samples_cauchy = np.append(samples_cauchy, 2.9)
@@ -77,23 +73,23 @@ class PyDICE(object):
         self.samples_t2xco2 = [samples_norm, samples_lognorm, samples_cauchy]
         
     def __call__(self,
-                 # uncertainties from Nordhaus(2008) (first draft)
+                 # uncertainties from Nordhaus(2008)
                  t2xco2_index=-1,
                  t2xco2_dist=0,
                  tfp_gr=0.079,
-                 sigma_gr=-0.01, # growth rate
+                 sigma_gr=-0.01, # growth rate sigma = Carbon intensity
                  pop_gr=0.134,
                  fosslim=6000,
                  cback=344,
                  decl_back_gr=0.025,
                  limmiu=1.2,
                  fdamage=0,
-                 # levers from Nordhaus(2008) (first draft)
-                 sr=0.249,#shridhar: savings rate fixed
-                 prtp_con = 0.015, #shridhar: prtp consumption
-                 prtp_dam = 0, #shridhar: prtp damage, 
+                 # levers from Nordhaus(2008) 
+                 sr=0.249,
+                 prtp_con = 0.015, 
+                 prtp_dam = 0.015, 
                  emuc = 1.45, #from nordhaus
-                 emdd = 1.45, #equivalent to emuc to sim Nordhaus
+                 emdd = 1.45, # default equivalent to emuc to simulate Nordhaus
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
@@ -113,46 +109,37 @@ class PyDICE(object):
         self.k = np.zeros((self.steps,))
         self.i = np.zeros((self.steps,))
         self.ygross = np.zeros((self.steps,))
-        self.ynet = np.zeros((self.steps,))     # ynet = net output damages = ygross * (1 - damfrac)
+        self.ynet = np.zeros((self.steps,))     #  output - damages
         self.damfrac = np.zeros((self.steps,))
-
-# income = production - damages (as eq to demand drop)
-# rename ynet as income
-
         self.damages = np.zeros((self.steps,))  # damages = ygross* damfrac
         self.pbacktime = np.zeros((self.steps,))
-        self.cost1 = np.zeros((self.steps,)) #rename to self.backstop_cost
+        self.cost1 = np.zeros((self.steps,)) # self.backstop_cost (rename)
         self.partfract = np.zeros((self.steps,))
         self.abatecost = np.zeros((self.steps,))
-        # self.miu_up = np.zeros((self.steps,))
+        # self.miu_up = np.zeros((self.steps,)) # ECS upper limit
         self.sigma = np.zeros((self.steps,))
         self.sigma_gr = np.zeros((self.steps,))
         self.eind = np.zeros((self.steps,))
         self.cumetree = np.zeros((self.steps,))
         self.etree = np.zeros((self.steps,))
         self.e = np.zeros((self.steps,)) #total emission
-        self.cca = np.zeros((self.steps,)) #cumulative emissions (rename)
-        self.y = np.zeros((self.steps,)) #this is actually income. it is y-damages-abatementcosts. 
+        self.cca = np.zeros((self.steps,)) # cumulative emissions (rename?)
+        self.y = np.zeros((self.steps,)) #this is actually income (rename?)
         self.c = np.zeros((self.steps,))
-        self.cpc = np.zeros((self.steps,)) #look at formula in init and model, why is there a /1000?
-        
-        self.con_g = np.zeros((self.steps,)) # consumption growth, iitializaed to 0
-        self.dam_g = np.zeros((self.steps,)) # damage growth, initializaed to 0
-
+        self.cpc = np.zeros((self.steps,))
+        self.dpc = np.zeros((self.steps,))
+        self.con_g = np.zeros((self.steps,)) # consumption growth
+        self.dam_g = np.zeros((self.steps,)) # damage growth
         self.sdr_con = np.zeros((self.steps,))
         self.sdr_dam = np.zeros((self.steps,))
-
         self.consumption_sdf = np.zeros((self.steps,))
         self.damage_sdf = np.zeros((self.steps,))
-
         self.inst_util_con = np.zeros((self.steps,))
         self.disc_util_con = np.zeros((self.steps,))
-        
         self.inst_disutil_dam = np.zeros((self.steps,))
         self.disc_disutil_dam = np.zeros((self.steps,))
-        
+        self.period_welfare = np.zeros((self.steps,))
         self.welfare = np.zeros((self.steps,))
-        
         self.cprice = np.zeros((self.steps,))
         self.ccatot = np.zeros((self.steps,))
         self.scc = np.zeros((self.steps,))
@@ -193,25 +180,19 @@ class PyDICE(object):
         # Elasticiy of marginal disutility of damage
         self.emdd = emdd
 
-
-
         """
         ############################# LEVERS ###############################
         """
-        if self.model_specification == 'EMA':
-            self.miu = np.zeros((self.steps,))
-        else:
-            DICE_OPT = pd.read_excel("DICE2013R.xlsm", sheet_name="Opttax",
-                                     index_col=0)
-            self.miu = np.array(DICE_OPT.iloc[133])
-        # Lever: Savings rate
-# shridhar: self.s defined here = savings rate, or it is actually just savings values, even though it is called self.sr. look at initialization of econ parameters, investment and savings: self.s[0] = self.sr
-        # if self.model_specification == 'EMA':
-            self.s = np.zeros((self.steps,))
+        # if (self.model_specification == 'EMA_disutility'):
+        self.miu = np.zeros((self.steps,))
         # else:
-        #     self.s = np.array(DICE_OPT.iloc[129]) #shridhar: # todo what does this do?
+        #     DICE_OPT = pd.read_excel("DICE2013R.xlsm", sheet_name="Opttax",
+        #                              index_col=0)
+        #     self.miu = np.array(DICE_OPT.iloc[133])
+        # Lever: Savings rate
+        self.s = np.zeros((self.steps,))
+
  # Savings rate (optlrsav = 0.2582781457) from the control file
-    #shridhar: savings rate is specified here, this determines investments & therefore savings
         self.sr = sr
        
         # Initial pure rate of time preference for consumption(0.015)
@@ -223,18 +204,16 @@ class PyDICE(object):
         # Elasticity of marginal utility of consumption
         self.emuc = emuc
 
-        # Elasticiy of marginal disutility of damage moved to deep uncertainties section
-        # self.emdd = emdd
-
         # Upper limit on emissions control rate after 2150 
-        # #shridhar: why??
         self.limmiu = limmiu
+
         # Initial emissions control rate for base case 2015
         self.miu0 = 0.03
         self.miu[0] = self.miu0
-        if self.model_specification == 'EMA':
-            self.miu[0] = self.miu0
+        # if self.model_specification == "EMA_disutility":
+        #     self.miu[0] = self.miu0        
         self.miu_period = miu_period
+
         """
         ##################### ECONOMIC INITIAL VALUES ######################
         """
@@ -281,7 +260,6 @@ class PyDICE(object):
         self.partfractfull = 1.0
 
         # Decline rate of decarbonization (per period)
-        #shridhar: is this the sigma in (A.10). #tbc
         self.decl_sigma_gr = -0.001
 
         # Carbon emissions from land 2010 [GtCO2 per year]
@@ -335,19 +313,10 @@ class PyDICE(object):
         ###################### CLIMATE INITIAL VALUES ######################
         """
 
-        # Equilibrium temperature impact [dC per doubling CO2]
-        # self.t2xco2 = t2xco2
         # Initial lower stratum temperature change [dC from 1900]
         self.tocean0 = 0.0068
         # Initial atmospheric temperature change [dC from 1900]
         self.tatm0 = 0.80
-        # 2013 version and earlier:
-        # Initial climate equation coefficient for upper level
-        # self.c10 = 0.098
-        # Regression slope coefficient (SoA~Equil TSC)
-        # self.c1beta = 0.01243
-        # Transient TSC Correction ("Speed of Adjustment Parameter")
-        # self.c1 = self.c10+self.c1beta*(self.t2xco2-2.9)
         # Climate equation coefficient for upper level
         self.c1 = 0.098
         # Transfer coefficient upper to lower stratum
@@ -362,11 +331,15 @@ class PyDICE(object):
         """
 
         # Output low (constraints of the model)
-        self.y_lo = 0.0
-        self.ygross_lo = 0.0
-        self.i_lo = 0.0
+        self.y_lo = 0.000001
+        self.ygross_lo = 0.000001
+        self.i_lo = 0.000001
         self.c_lo = 2.0
-        self.cpc_lo = 0.01 #shridhar: why?
+        self.cpc_lo = 0.000001
+        self.damages_lo = 2.0
+        self.dpc_lo = 0.000001
+        self.sdr_con_lo = 0.0
+        self.sdr_dam_lo = 0.0
         self.k_lo = 1.0
         # self.miu_up[0] = 1.0
 
@@ -441,13 +414,15 @@ class PyDICE(object):
         self.k[0] = 135.0
 
         # Gross world product: gross abatement and damages
-        # Gama: Capital elasticity in production function
+            # Gama: Capital elasticity in production function
         self.ygross[0] = (self.tfp[0]*((self.pop[0]/1000)**(1-self.gama))
                           * (self.k[0]**self.gama))
+        if (self.ygross[0] < self.ygross_lo):
+            self.ygross[0] = self.ygross_lo
 
         # Damage Fraction/temp: Temperature/a1: Damage intercept
-        # a2: Damage quadratic term/a3: Damage exponent        
-        if self.fdamage == 0:
+            # a2: Damage quadratic term/a3: Damage exponent        
+        if (self.fdamage == 0):
             self.damfrac[0] = (self.a1*self.temp_atm[0] 
                                + self.a2*(self.temp_atm[0]**self.a3))
         elif self.fdamage == 1:
@@ -456,27 +431,30 @@ class PyDICE(object):
         elif self.fdamage == 2:
             self.damfrac[0] = (1-1/(1+0.0028388**2+0.0000050703
                                     *(self.temp_atm[0]**6.754)))
-        # Net output damages
+        # Net output (Output - damages)
         self.ynet[0] = self.ygross[0]*(1.0-self.damfrac[0])
+        
         # Damages
-        self.damages[0] = self.ygross[0]*self.damfrac[0]
+        self.damages[0] = self.ygross[0] * self.damfrac[0]
+        if self.damages[0] < self.damages_lo:
+            self.damages[0] = self.damages_lo
+        # Damage per capita
+        self.dpc[0] = self.damages[0] * 1000 / self.pop[0]
+        if self.dpc[0] < self.dpc_lo:
+            self.dpc[0] = self.dpc_lo
 
-        # Initial damage growth rate
-        self.dam_g[0] = 0.00
-
-        # Output-to-Emission
+        ## Output-to-Emission
         # Industrial emissions 2010 [GtCO2 per year]
         self.e0 = 33.61
         # Initial world gross output [Trillions 2015 US $]
         self.q0 = 63.69
         # CO2-equivalent-emissions to output ratio
         self.sigma[0] = self.e0/(self.q0 * (1 - self.miu[0]))
-        # Change in sigma: the cumulative improvement in energy efficiency)
         # Initial growth of sigma (per year)
         self.sigma_gr[0] = sigma_gr
 
         # Backstop price/cback: cost of backstop
-        # decl_back_gr: decline of backstop
+            # decl_back_gr: decline of backstop
         self.pbacktime[0] = self.cback
         # Adjusted cost for backstop
         self.cost1[0] = self.pbacktime[0]*self.sigma[0]/self.expcost2/1000
@@ -492,7 +470,7 @@ class PyDICE(object):
                              * (self.miu[0]**self.expcost2)
                              * (self.partfract[0]**(1-self.expcost2)))
 
-        # Carbon price
+        # Carbon price (unused)
         self.cprice[0] = (self.pbacktime[0]
                           * ((self.miu[0]/self.partfract[0])
                              ** (self.expcost2-1)))
@@ -510,62 +488,95 @@ class PyDICE(object):
 
         # Cumulative emissions (cca_up - fossil limits)
         self.cca[0] = 90.0
-        if (self.cca[0] > self.cca_up): #shridhar: how will this (initial) value be < 90 when it's just been defined
-            self.cca[0] = self.cca_up + 1.0
+        # if (self.cca[0] > self.cca_up): #shridhar: how will this (initial) value be < 90 when it's just been defined
+        #     self.cca[0] = self.cca_up + 1.0
 
         self.ccatot[0] = self.cca[0] + self.etree[0]
 
-        # Gross world product (net of abatement and damages)
+        # Gross world product (income from production output net of abatement and damages)
         self.y[0] = self.ynet[0]-self.abatecost[0]
-        #askshajee: why is there a limit to output without affecting any production inputs? I'm taking this out to capture actual growth effects
-        if self.y[0] < self.y_lo: #y_lo defined as zero.
+        # Applying limits
+        if (self.y[0] < self.y_lo): 
             self.y[0] = self.y_lo 
 
         # Investments & Savings
-        if self.model_specification == 'EMA':
-            self.s[0] = self.sr
+        # if self.model_specification == "EMA_disutility":
+        self.s[0] = self.sr
+        
+        # Investment
         self.i[0] = self.s[0]*self.y[0]
+        if (self.i[0] < self.i_lo):
+            self.i[0] = self.i_lo
 
-        # Consumption
-        # yearly consumption
+        ## Consumption
+        # Per period consumption
         self.c[0] = self.y[0] - self.i[0]
+            # limit self.c_lo = 2.0
+        # if self.c[0] < self.c_lo:
+        #     self.c[0] = self.c_lo
         # consumption per capita
-        self.cpc[0] = self.c[0]*1000/self.pop[0]
+        self.cpc[0] = self.c[0] * 1000 / self.pop[0]
+            # limit self.cpc_lo = 0.0001
+        if (self.cpc[0] < self.cpc_lo):
+            self.cpc[0] = self.cpc_lo
 
-        #Consumption growth rate
+        ############### Welfare ####################
+        # U(C) and V(D) with endogenous discounting
+        # period contribution to welfare outcome
+        ############################################
+
+        ## Utility of consumption ##
+        
+        # Initial consumption growth rate
         self.con_g[0] = 0.00 
 
-        # Utility of consumption
-        # consumption utility social discount rate
-       
+        # Social discount rate of consumption utility
+        # self.sdr_con[0] = 0.00001
+        # self.consumption_sdf[0] = 1.00
         self.sdr_con[0] = (self.prtp_con + (self.emuc * self.con_g[0]))
-        self.consumption_sdf[0] = 1
-        # Instantaneous utility 
-        #Shridhar: I'm changing this from U(C)= C^((1-emuc)-1)/((1-emuc)-1). 
-        # https://www.desmos.com/calculator/75baiw84ym
+        # if self.sdr_con < self.sdr_con_lo:
+        #     self.sdr_con = self.sdr_con_lo
 
-        self.inst_util_con[0] = (((self.cpc[0])
-                              ** (1.0-self.emuc))
-                             / (1.0-self.emuc)) - 1.0
+        self.consumption_sdf[0] = 1.00
+        
+        # Absolute period utility
+            # https://www.desmos.com/calculator/75baiw84ym
+        
+        if self.emuc == 1.00:
+            self.inst_util_con[0] = np.log(self.cpc[0])
+        else:
+            self.inst_util_con[0] = (((self.cpc[0])**(1.0 - self.emuc) - 1.0) / (1.0 - self.emuc) - 1.0)
+                
+        # Discountedperiod utility 
+        self.disc_util_con[0] = self.inst_util_con[0] * self.consumption_sdf[0]
 
-        # discounted utility of consumption
-        self.disc_util_con[0] = self.inst_util_con[0] * self.pop[0]
+        ## Disutility of Damage V(D)
 
-        #Disutility of damage
-        # damage disutility social discount rate and factor
-       
-        self.sdr_dam[0] = self.prtp_dam + (self.emdd * self.damages[0])
+        # Initial Per capita damage growth (change) rate
+        self.dam_g[0] = 0.00
+
+        # Endogenous social discount rate for disutility of damage
+        self.sdr_dam[0] = self.prtp_dam + (self.emdd * self.dam_g[0])
+        # if self.sdr_dam[0] < self.sdr_dam_lo:
+        #         self.sdr_dam[0] = self.sdr_dam_lo
+
+        # Social discount factor for disutility of damage 
         self.damage_sdf[0] = 1.00
 
-        # Instantaneous disutility 
-        self.inst_disutil_dam[0] = (((self.damages[0]) ** (1.0 - self.emdd))/ (1.0 - self.emdd)) - 1.0
-
-        # Discounted disutility of damage
-        self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.pop[0]
+        # Instantaneous disutility of damage
+        if self.emdd == 1.00:
+            self.inst_disutil_dam[0] = np.log(self.dpc[0])
+        else:
+            self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+            
+        # # Discounted disutility of damage
+        self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.damage_sdf[0]
 
         # Welfare function
-        # shridhar: check the whole scaling thing and verify formula
-        self.welfare[0] = ((self.tstep*self.scale1*np.sum(self.disc_util_con - self.disc_disutil_dam))
+            # shridhar: check the whole scaling thing and verify formula
+        self.period_welfare[0] = (self.disc_util_con[0] - self.disc_disutil_dam[0]) * self.pop[0]/ 1000
+
+        self.welfare[0] = ((self.tstep*self.scale1*np.sum(self.period_welfare))
                         + self.scale2)
         
        
@@ -601,7 +612,7 @@ class PyDICE(object):
             if(self.ml[t] < self.ml_lo):
                 self.ml[t] = self.ml_lo
 
-            # Radiative forcing
+            ## Radiative forcing
             # Exogenous forcings from other GHG
             if (t < 19):
                 self.forcoth[t] = self.fex0+(1.0/18.0)*(self.fex1-self.fex0)*t
@@ -641,35 +652,33 @@ class PyDICE(object):
             """
 
             # Population and Labour
-            # # growth rate of population
-            # pop_gr = (init_pop_gr/decl_pop_gr)*(1-exp(-(decl_pop_gr/100)*10*(ord(t)-1)))
-            # # population
             self.pop[t] = (self.pop[t-1]
-                           * (self.max_pop/self.pop[t-1])**self.pop_gr)
+            * (self.max_pop/self.pop[t-1])**self.pop_gr)
 
-            # Total Factor Productivity
-            # growth rate of TFP
+            ## Total Factor Productivity
+            # TFP growth rate
             self.tfp_gr[t] = self.tfp_gr[0]*np.exp(-1*self.decl_tfp_gr*5*t)
-            # TFP level
+            # Period TFP 
             self.tfp[t] = self.tfp[t-1]/(1-self.tfp_gr[t-1])
 
-            # Gross Output
+            ## Gross Production Output
+            
             # k: Captial Stock
             self.k[t] = (((1-self.dk)**self.tstep)*self.k[t-1]
                          + self.tstep*self.i[t-1])
-            if self.k[t] < self.k_lo:
+            if (self.k[t] < self.k_lo):
                 self.k[t] = self.k_lo
 
-            # Gross world product: gross abatement and damages
-            # gama: Capital elasticity in production function
+            # Gross world product: Basic C-D production output
+                # gama: Capital elasticity in production function
             self.ygross[t] = (self.tfp[t]*((self.pop[t]/1000)**(1-self.gama))
                               * (self.k[t]**self.gama))
-            if self.ygross[t] < self.ygross_lo:
+            if (self.ygross[t] < self.ygross_lo):
                 self.ygross[t] = self.ygross_lo
 
             # Damage Fraction/temp: Temperature/a1: Damage intercept
-            # a2: Damage quadratic term/a3: Damage exponent
-            # shridhar: change here if non-iid damage
+                # a2: Damage quadratic term/a3: Damage exponent
+            
             if self.fdamage == 0:
                 self.damfrac[t] = (self.a1*self.temp_atm[t] 
                                    + self.a2*(self.temp_atm[t]**self.a3))
@@ -679,22 +688,26 @@ class PyDICE(object):
             elif self.fdamage == 2:
                 self.damfrac[t] = (1-1/(1+0.0028388**2+0.0000050703
                                         *(self.temp_atm[t]**6.754)))
-            # Net output damages
+            # Net output (Output - damages)
             self.ynet[t] = self.ygross[t]*(1.0-self.damfrac[t])
             # Damages
             self.damages[t] = self.ygross[t]*self.damfrac[t]
-            # Damage growth
-            # self.dam_g[t] = ((self.dam_g[t] - self.dam_g[t-1])/ self.dam_g[t-1])
-            self.dam_g[t] =  np.log((self.damages[t])/(self.damages[t-1]))
+            if (self.damages[t] < self.damages_lo):
+                self.damages[t] = self.damages_lo
+
+            # Damages per capita
+            self.dpc[t] = self.damages[t]*1000/self.pop[t]
+            if (self.dpc[t] < self.dpc_lo):
+                self.dpc[t] = self.dpc_lo
 
             # CO2-equivalent-emissions to output ratio
             self.sigma[t] = (self.sigma[t-1]
                              * np.exp(self.sigma_gr[t-1]*self.tstep))
-            # Change in sigma: the cumulative improvement in energy efficiency)
+                # Change in sigma: the cumulative improvement in energy efficiency)
             self.sigma_gr[t] = (self.sigma_gr[t-1]
                                 * ((1+self.decl_sigma_gr)**self.tstep))
             
-            # Backstop price/cback: cost of backstop
+            ## Backstop price/cback: cost of backstop
             # decl_back_gr: decline of backstop
             self.pbacktime[t] = self.cback*((1 - self.decl_back_gr)**(t))
             # Adjusted cost for backstop
@@ -708,25 +721,22 @@ class PyDICE(object):
                                      + (self.partfractfull-self.partfract2010)
                                      * (t/self.periodfullpart))
 
-            # Emission Control rate limit
-            if self.model_specification == 'EMA':
+            # Emission Control rate
+
+            if self.model_specification == 'EMA_disutility':
                 if t >= self.miu_period:
                     self.miu[t] = self.limmiu
                 else:
                     self.miu[t] = self.limmiu * t/self.miu_period + self.miu[0]
-
-            # if (t < 30):
-            # self.miu_up[t] = 1.0
-            # else:
-            # self.miu_up[t] = self.limmiu * self.partfract[t]
-
-            # Abatement costs
             
+
+            
+            # Abatement costs
             self.abatecost[t] = (self.ygross[t]*self.cost1[t]
                                  * (self.miu[t]**self.expcost2)
                                  * (self.partfract[t]**(1-self.expcost2)))
 
-            # Carbon price
+            # Carbon price (unused)
             self.cprice[t] = (self.pbacktime[t]
                               * ((self.miu[t]/self.partfract[t])
                                  ** (self.expcost2-1)))
@@ -736,6 +746,7 @@ class PyDICE(object):
 
             # Emissions from deforestation
             self.etree[t] = self.eland0*((1-self.decl_land) ** t)
+            
             # Cumulative missions from land
             self.cumetree[t] = self.cumetree[t] + self.etree[t]*(5.0/3.666)
 
@@ -744,78 +755,97 @@ class PyDICE(object):
 
             # Cumulative emissions from industry(?) (cca_up - fossil limits)
             self.cca[t] = self.cca[t-1] + self.eind[t-1]*5.0/3.666
-            # taking off this upper limit unless I find a reason to keep it
-            # if (self.cca[t] > self.cca_up):
-            #     self.cca[t] = self.cca_up + 1.0
+            if (self.cca[t] > self.cca_up):
+                self.cca[t] = self.cca_up + 1.0
 
             self.ccatot[t] = self.cca[t] + self.cumetree[t]
 
-            # Gross world product (net of abatement and damages)
+            # Gross world product (income from production output net of abatement and damages)
             self.y[t] = self.ynet[t]-self.abatecost[t]       
-            # Applying Limits
-#askshajee: why is there a limit to output without affecting any production inputs? I'm taking this out to capture actual growth effects
-            if self.y[t] < self.y_lo: #y_lo defined = 0
+            # Applying Limits 
+               # self.y_lo  = 0.0
+            if (self.y[t] < self.y_lo):
                 self.y[t] = self.y_lo
 
-            # Investments & Savings
-            # Optimal long-run savings rate used for transversality
-            # optlrsav = ((self.dk + 0.004)
-            #             / (self.dk + 0.004 * self.emuc + self.prtp_con)
-            #             * self.gama)
-
+            ## Investments & Savings
             # Savings
-            # Override the savings rate if prescribed from the control file
-
-            # Set the last 10 periods of the savings rate to optlrsav
-            # if self.model_specification == 'EMA':
-            #     if (t < self.steps-10):
-            #         if(self.sr > 0.0):
-            #             self.s[t] = self.sr
-            #     else:
-            #         self.s[t] = optlrsav
             self.s[t] = self.sr
 
             # Investment
             self.i[t] = self.s[t]*self.y[t]
-            #shridhar: removing lower limits unless there's a reason it shouldn't be captured
-            if(self.i[t] < self.i_lo):
+            if (self.i[t] < self.i_lo):
                 self.i[t] = self.i_lo
 
-            # Consumption
-            # yearly consumption
+            ## Consumption
+            # Period consumption
             self.c[t] = self.y[t] - self.i[t]
-            #shridhar: removing lower limit to consumption
-            if self.c[t] < self.c_lo:
+                # limit self.c_lo = 2.0
+            if (self.c[t] < self.c_lo):
                 self.c[t] = self.c_lo 
-            
             # Consumption per capita
-            self.cpc[t] = self.cpc[t]*1000.0/self.pop[t]
+            self.cpc[t] = self.c[t]*1000/self.pop[t]
+                # limit self.cpc_lo = 0.0001
+            if (self.cpc[t] < self.cpc_lo):
+                self.cpc[t] = self.cpc_lo 
+
+            ############### Welfare ####################
+            # U(C) and V(D) with endogenous discounting
+            # period contribution to welfare outcome
+            ############################################
             
-            # Endogenous consumption growth rate
-            self.con_g[t] = (self.cpc[t] - self.cpc[t-1])/ self.cpc[t]
+            ## Utility of comsumption U(C)
+            # Per capita consumption growth rate
+            self.con_g[t] = (self.cpc[t] - self.cpc[t-1])/ self.cpc[t-1]
+            
             # Endogenous social discount rate for utility of consumption
-            self.sdr_con[t] = (self.prtp_con + (self.emuc * self.con_g[0]))
-            # Social Discount Factor for Utility of Consumption 
-            self.consumption_sdf[t] = 1.00/((1.00 + self.sdr_con[0])**self.tstep)
+            self.sdr_con[t] = (self.prtp_con + (self.emuc * self.con_g[t]))
+            if (self.sdr_con[t] < self.sdr_con_lo):
+                self.sdr_con[t] = self.sdr_con_lo
+            
+            # Social discount Factor for Utility of Consumption 
+            self.consumption_sdf[t] = (1.0 /((1.0 + self.sdr_con[t]))**(self.tstep * (t)))
+            
+            # Absolute period utility
+            if (self.emuc == 1.00):
+                self.inst_util_con[t] = np.log(self.cpc[t])
+            else:
+                self.inst_util_con[t] = ((self.cpc[t] ** (1.0 - self.emuc) - 1.0)/ (1.0 - self.emuc) - 1.0)
+            
+            # Discounted period utility
+            self.disc_util_con[t] = self.inst_util_con[t] * self.consumption_sdf[t]
+            # debug/ line break
+            
+            ## Disutility of Damage V(D)
+            # Per capita damage growth (change) rate
+            self.dam_g[t] = (self.dpc[t] - self.dpc[t-1])/ self.dpc[t-1]
+            # self.dam_g[t] =  np.log((self.dpc[t])/(self.dpc[t-1]))
+    
+            # Endogenous social discount rate for disutility of damage
+            self.sdr_dam[t] = (self.prtp_dam + (self.emdd * self.dam_g[t]))
+            if (self.sdr_dam[t] < self.sdr_dam_lo):
+                self.sdr_dam[t] = self.sdr_dam_lo
+            
+            # Social discount factor for disutility of damage            
+            self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep * (t))
+                      
+            # Absolute period disutility
+            if (self.emdd == 1.00):
+                self.inst_disutil_dam[t] = np.log(self.dpc[t])
+            else:
+                self.inst_disutil_dam[t] = ((self.dpc[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+            
+            # Discounted period disutility
+            self.disc_disutil_dam[t] = self.inst_disutil_dam[t] * self.damage_sdf[t]
 
-            # Utility of comsumption
+            # Period Welfare term
+            self.period_welfare[t] =  (self.disc_util_con[t] - self.disc_disutil_dam[t]) * self.pop[t]/1000
 
-            self.inst_util_con[t] = (((self.cpc[t])** (1.0 - self.emuc))/(1.0 - self.emuc)) - 1.0
-
-            self.disc_util_con[t] = self.inst_util_con[t] * self.pop[t] * self.consumption_sdf[t]
-
-        ### Disutility of Damage
-            self.sdr_dam[t] = prtp_dam + (self.emdd * self.dam_g[t])
-            self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep)
-            self.inst_disutil_dam[t] = (self.damages[t] ** (1.0 - self.emdd))/ (1.0 - self.emdd)
-            self.disc_disutil_dam[t] = self.inst_disutil_dam[t] * self.pop
-            # Welfare
-            self.welfare[t] = ((self.tstep*self.scale1*np.sum(self.disc_util_con - self.disc_disutil_dam)+self.scale2))
-
-
+            self.welfare[t] = ((self.tstep*self.scale1*np.sum(self.period_welfare)) + self.scale2)
             """
             ################# POST OPTIMISATION PARAMETERS #################
             """
+            ## Endogenous dynamic SCC
+
             # self.scc[t] = -1000*self.e[t]/(.00001+self.c[t])
             # self.atfrac[t] = ((self.mat[t]-588)/(self.ccatot[t]+.000001))
             # self.atfrac2010[t] = ((self.mat[t]-self.mat[0])
@@ -829,18 +859,19 @@ class PyDICE(object):
         """
 
         self.data = {'Atmospheric Temperature': self.temp_atm,
-                     'Damages': self.damages,
-                     'utility of Consumption': self.inst_util_con,
-                     'Savings rate': self.s,
+                     'Per Capita Damage': self.dpc,
+                     'Per Capita Consumption': self.cpc,
+                     'Population': self.pop,
+                     'Utility of Consumption': self.disc_util_con,
                      'Disutility of Damage': self.disc_disutil_dam,
-                     'Damage to output ratio': self.damages/self.y,
                      'Welfare': self.welfare,
                      'Total Output': self.y,
-                     
+                     'Consumption Growth': self.con_g,
+                     'Damage Growth': self.dam_g,
+                     'Consumption SDR': self.sdr_con,
+                     'Damage SDR': self.sdr_dam,
                      
                     }
 
         return self.data
-
-
 # %%
