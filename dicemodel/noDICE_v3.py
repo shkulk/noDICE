@@ -1,6 +1,8 @@
 # DICE - Model
 
 # v3.3: corrected the cpc function
+# v3.4: period welfare outcome
+# v3.5: added 2300 outcomes, removed because you can just get it from the overall results anyway
 # IMPORT PACKAGES & SET PATH
 import numpy as np
 import pandas as pd
@@ -19,7 +21,7 @@ class PyDICE(object):
         steps: amount of years looking into the future
         model_specification: model specification for 'EMA_disutility' or 'Validation'  
     """
-    def __init__(self, tstep=5, steps=60, model_specification="EMA_disutility"):
+    def __init__(self, tstep=5, steps=65, model_specification="EMA_disutility"):
         self.tstep = tstep					# (in years)
         self.steps = steps
         self.startYear = 2010
@@ -140,6 +142,7 @@ class PyDICE(object):
         self.disc_disutil_dam = np.zeros((self.steps,))
         self.period_welfare = np.zeros((self.steps,))
         self.welfare = np.zeros((self.steps,))
+        self.undiscounted_welfare = np.zeros((self.steps,))
         self.cprice = np.zeros((self.steps,))
         self.ccatot = np.zeros((self.steps,))
         self.scc = np.zeros((self.steps,))
@@ -578,8 +581,8 @@ class PyDICE(object):
 
         self.welfare[0] = ((self.tstep*self.scale1*np.sum(self.period_welfare))
                         + self.scale2)
-        
-       
+        # Initializing Period Welfare (Undiscounted)
+        self.undiscounted_welfare[0] = 0.0
         # logging.info(self, "is initialized.")
         
 
@@ -840,7 +843,10 @@ class PyDICE(object):
             # Period Welfare term
             self.period_welfare[t] =  (self.disc_util_con[t] - self.disc_disutil_dam[t]) * self.pop[t]/1000
 
-            self.welfare[t] = ((self.tstep*self.scale1*np.sum(self.period_welfare)) + self.scale2)
+            self.welfare[t] = ((self.tstep * self.scale1 * np.sum(self.period_welfare)) + self.scale2)
+            
+            # Period Welfare (Undiscounted)
+            self.undiscounted_welfare =  (self.inst_util_con - self.inst_disutil_dam)
             """
             ################# POST OPTIMISATION PARAMETERS #################
             """
@@ -858,19 +864,36 @@ class PyDICE(object):
         ####################################################################
         """
 
-        self.data = {'Atmospheric Temperature': self.temp_atm,
+        self.data = {
+                     'Atmospheric Temperature': self.temp_atm,
                      'Per Capita Damage': self.dpc,
                      'Per Capita Consumption': self.cpc,
                      'Population': self.pop,
-                     'Utility of Consumption': self.disc_util_con,
-                     'Disutility of Damage': self.disc_disutil_dam,
+                     'Utility of Consumption': self.inst_util_con,
+                     'Disutility of Damage': self.inst_disutil_dam,
                      'Welfare': self.welfare,
+                     'Undiscounted Period Welfare': self.undiscounted_welfare,
                      'Total Output': self.y,
                      'Consumption Growth': self.con_g,
                      'Damage Growth': self.dam_g,
                      'Consumption SDR': self.sdr_con,
                      'Damage SDR': self.sdr_dam,
-                     
+                     #  Final year data(non-time series)
+                    #  desired_years= [20,58]
+                    #  for year in desired_years:
+                    #     'Atmospheric Temperature 2300': self.temp_atm[58],
+                    #     'Per Capita Damage 2300': self.dpc[58],
+                    #     'Per Capita Consumption 2300': self.cpc[58],
+                    #     'Population 2300': self.pop[58],
+                    #     'Utility of Consumption 2300': self.disc_util_con[58],
+                    #     'Disutility of Damage 2300': self.disc_disutil_dam[58],
+                    #     'Welfare 2300': self.welfare[58],
+                    #     'Undiscounted Period Welfare 2300': self.undiscounted_welfare[58],
+                    #     'Total Output 2300': self.y[58],
+                    #     'Consumption Growth 2300': self.con_g[58],
+                    #     'Damage Growth 2300': self.dam_g[58],
+                    #     'Consumption SDR 2300': self.sdr_con[58],
+                    #     'Damage SDR 2300': self.sdr_dam[58],
                     }
 
         return self.data
