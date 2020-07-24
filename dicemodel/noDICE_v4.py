@@ -94,7 +94,7 @@ class PyDICE(object):
                  prtp_con = 0.015, 
                  prtp_dam = 0.015, 
                  emuc = 1.45, #from nordhaus
-                 emdd = 1.45, # default equivalent to emuc to simulate Nordhaus
+                 emdd = 0, # default equivalent to emuc to simulate Nordhaus
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
