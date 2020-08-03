@@ -577,7 +577,7 @@ class PyDICE(object):
             self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
         if self.inst_disutil_dam[0] < self.inst_disutil_lo:
             self.inst_disutil_dam[0] = self.inst_disutil_lo
-          
+
         # # Discounted disutility of damage
         self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.damage_sdf[0]
 

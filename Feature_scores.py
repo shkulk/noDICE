@@ -25,11 +25,12 @@ from dest_directories import gz_path, fig_path
 # %%
 experiments, outcomes = load_results(os.path.join(gz_path,'v4_1a_OE_sr100s_20p_.tar.gz'))
 experiments = experiments.drop(['model', 'policy'], axis=1)
-
+#%%
+experiments, outcomes = results
 
 # %%
 TimeLine = []
-for i in range(60):
+for i in range(65):
     TimeLine.append(2010+i*5)
 TimeLine
 outcomes["TIME"] = np.array([TimeLine])

@@ -3,8 +3,10 @@
 # v3.3: corrected the cpc function
 # v3.4: period welfare outcome
 # v3.5: added 2300 outcomes, removed because you can just get it from the overall results anyway
-# v4: increased run length (+5 time steps = 25 years) to compensate for long run behaviour. 
-#   : thinking of dropping the first two time steps (wearm-up), last 5 time steps within the model itself..
+# v4: increased run length (+5 time steps = 25 years) to compensate for long run behaviour. Thinking of dropping the first two time steps (wearm-up), last 5 time steps within the model itself. -- no need
+
+# v5: V(D) switch added 
+
 
 # IMPORT PACKAGES & SET PATH
 import numpy as np
@@ -94,7 +96,8 @@ class PyDICE(object):
                  prtp_con = 0.015, 
                  prtp_dam = 0.015, 
                  emuc = 1.45, #from nordhaus
-                 emdd = -0.1, # default equivalent to emuc to simulate Nordhaus
+                 emdd=-0.1,  # default equivalent to emuc to simulate Nordhaus
+                 VD_switch = 1, # V(D) switched OFF = 0
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
@@ -185,6 +188,9 @@ class PyDICE(object):
 
         # Elasticiy of marginal disutility of damage
         self.emdd = emdd
+
+        # Disutility of damage switch: VD_switch = 0 for without V(D)
+        self.VD_switch = VD_switch
 
         """
         ############################# LEVERS ###############################
@@ -567,17 +573,21 @@ class PyDICE(object):
         # if self.sdr_dam[0] < self.sdr_dam_lo:
         #         self.sdr_dam[0] = self.sdr_dam_lo
 
-        # Social discount factor for disutility of damage 
+            # Social discount factor for disutility of damage 
         self.damage_sdf[0] = 1.00
 
-        # Instantaneous disutility of damage
-        if self.emdd == 1.00:
-            self.inst_disutil_dam[0] = np.log(self.dpc[0])
+        if self.VD_switch == 0:
+            self.inst_disutil_dam[0] = 0.0
         else:
-            self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
-        if self.inst_disutil_dam[0] < self.inst_disutil_lo:
-            self.inst_disutil_dam[0] = self.inst_disutil_lo
-          
+
+            # Instantaneous disutility of damage
+            if self.emdd == 1.00:
+                self.inst_disutil_dam[0] = np.log(self.dpc[0])
+            else:
+                self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+            if self.inst_disutil_dam[0] < self.inst_disutil_lo:
+                self.inst_disutil_dam[0] = self.inst_disutil_lo
+
         # # Discounted disutility of damage
         self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.damage_sdf[0]
 
@@ -836,15 +846,18 @@ class PyDICE(object):
             
             # Social discount factor for disutility of damage            
             self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep * (t))
-                      
-            # Absolute period disutility
-            if (self.emdd == 1.00):
-                self.inst_disutil_dam[t] = np.log(self.dpc[t])
-            else:
-                self.inst_disutil_dam[t] = ((self.dpc[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
-            
-            if self.inst_disutil_dam[t] < self.inst_disutil_lo:
-                self.inst_disutil_dam[t] = self.inst_disutil_lo
+
+            if self.VD_switch == 0:
+                self.inst_disutil_dam[t] = 0.0
+            else:                      
+                # Absolute period disutility
+                if (self.emdd == 1.00):
+                    self.inst_disutil_dam[t] = np.log(self.dpc[t])
+                else:
+                    self.inst_disutil_dam[t] = ((self.dpc[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+                
+                if self.inst_disutil_dam[t] < self.inst_disutil_lo:
+                    self.inst_disutil_dam[t] = self.inst_disutil_lo
 
             # Discounted period disutility
             self.disc_disutil_dam[t] = self.inst_disutil_dam[t] * self.damage_sdf[t]

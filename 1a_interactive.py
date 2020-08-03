@@ -19,9 +19,9 @@ import statsmodels.api as sm
 from sklearn import preprocessing 
 import ema_workbench.em_framework.evaluators
 
-from dicemodel.noDICE_v4 import PyDICE
-# from noDICE_v4 import PyDICE
-model_version = 'v4'
+from dicemodel.noDICE_v5 import PyDICE
+# from noDICE_v5 import PyDICE
+model_version = 'v5'
 
 
 from dest_directories import gz_path, fig_path
@@ -48,16 +48,17 @@ if __name__ == '__main__':
     dice_sm = Model('dicesmEMA', function=model)
     
     dice_sm.uncertainties = [IntegerParameter('t2xco2_index', 0, 999),
-                             IntegerParameter('t2xco2_dist',0,2),
-                             IntegerParameter('fdamage', 0, 2),
+                            #  IntegerParameter('t2xco2_dist',0,2),
+                            #  IntegerParameter('fdamage', 0, 2),
                              RealParameter('tfp_gr',  0.07, 0.09),
                              RealParameter('sigma_gr', -0.012, -0.008),
                              RealParameter('pop_gr', 0.1, 0.15),
                              RealParameter('fosslim',  4000.0, 13649),
-                             IntegerParameter('cback', 100, 600)
+                             IntegerParameter('cback', 100, 600),
+                             IntegerParameter('VD_switch', 0, 1)
                             ]
     
-    dice_sm.levers = [RealParameter('sr', 0.2, 0.3),
+    dice_sm.levers = [RealParameter('sr', 0.1, 0.5),
                       RealParameter('prtp_con',  0.001, 0.015),
                       RealParameter('prtp_dam',  0.001, 0.015),
                       RealParameter('emuc',  1.01, 2.00),
@@ -68,6 +69,7 @@ if __name__ == '__main__':
     
     dice_sm.outcomes = [
                         TimeSeriesOutcome('Atmospheric Temperature'),
+                        TimeSeriesOutcome('Total Output'),
                         TimeSeriesOutcome('Per Capita Consumption'),
                         TimeSeriesOutcome('Consumption Growth'),
                         TimeSeriesOutcome('Utility of Consumption'),
@@ -82,10 +84,12 @@ if __name__ == '__main__':
 
 
 # %%
-n_scenarios = 1000
-n_policies = 20
+n_scenarios = 5000
+n_policies = 50
 
-# %%
+run = 3
+
+# %% Sequential processing
 start = time.time()
 with SequentialEvaluator(dice_sm) as evaluator:
     results = evaluator.perform_experiments(scenarios=n_scenarios, policies=n_policies)
@@ -94,7 +98,7 @@ end = time.time()
 print('Experiment time is ' + str(round((end - start)/60)) + ' mintues')
 
 
-# %%
+# %% Multiprocessing
 start = time.time()
 with MultiprocessingEvaluator(dice_sm, n_processes=8) as evaluator:
     results = evaluator.perform_experiments(scenarios=n_scenarios, policies=n_policies)
@@ -104,11 +108,11 @@ print('Experiment time is ' + str(round((end - start)/60)) + ' mintues')
 
 # %%
 
-save_results(results, os.path.join(gz_path, '1a_OE_all' + str(n_scenarios) + 's_' + str(n_policies) + 'p_' + '.tar.gz'))
+save_results(results, os.path.join(gz_path, str(run) + '_OE_' + str(n_scenarios) + 's_' + str(n_policies) + 'p_' + '.tar.gz'))
 
 
 # %%
-results = load_results(os.path.join(gz_path,'1a_OE_all1000s_20p_.tar.gz'))
+results = load_results(os.path.join(gz_path,'020820_OE_1000s_20p_.tar.gz'))
 # outcomes
 #%%
 experiments, outcomes = results
@@ -153,11 +157,11 @@ for key, value in outcomes.items():
 ############## Pairs scatter plot: grouped by policy
 
 fig, axes = ema_workbench.analysis.pairs_plotting.pairs_scatter(experiments, outcomes,group_by='policy')
-fig.set_size_inches(50,50)
+fig.set_size_inches(20,20)
 plt.show()
 
 # %%
-fig.savefig(os.path.join(fig_path,'OE_all_pairs_by_policy' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+fig.savefig(os.path.join(fig_path,'OE_pairsplot_by_policy_' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
 
 # %% 
 ## Pairs plotting by emdd range intervals using ema workbench 
@@ -173,13 +177,13 @@ grouping_specifiers_emdd = {'Low': low, 'mid': 0, 'High': high}
 # %%
 
 fig, axes = pairs_plotting.pairs_scatter(experiments,outcomes, group_by='emdd',grouping_specifiers=grouping_specifiers_emdd, legend=True, transparent=True, papertype='letter')
-fig.set_size_inches(50,50)
+fig.set_size_inches(20,20)
 plt.show()
 
 # %%
 repeat_token = 1
 
-fig.savefig(os.path.join(fig_path,'OE_pairs_emdd_ema' + str(n_scenarios) + 's' + str(n_policies) + 'p_' + str(repeat_token) + '.png'))
+fig.savefig(os.path.join(fig_path,'OE_pairsplot_by_emdd_ema' + str(n_scenarios) + 's' + str(n_policies) + 'p_' + str(repeat_token) + '.png'))
 
 
 #%%
@@ -190,10 +194,10 @@ out_DF.head()
 emdd = experiments['emdd']
 out_DF['emdd'] = emdd
 
-low = -0.5
+# low = -0.5
 # %%
 # RealParameter('emdd', -1.0, 0.99)
-out_DF['emdd'] = out_DF['emdd'].apply(lambda x: '-0.99 to -0.5' if x < -0.5 else('-0.5 to 0' if (x < 0) else('0 to 0.5' if (x < 0.5) else '0.5 to 0.99')))
+# out_DF['emdd'] = out_DF['emdd'].apply(lambda x: '-0.99 to -0.5' if x < -0.5 else('-0.5 to 0' if (x < 0) else('0 to 0.5' if (x < 0.5) else '0.5 to 0.99')))
 #%%
 out_DF['emdd'] = out_DF['emdd'].apply(
     lambda x: '-0.99 to -0.5' if x < -0.5
@@ -213,13 +217,15 @@ out_DF['emdd'] = out_DF['emdd'].apply(
 # out_DF = out_DF.drop(columns=['Total Output', 'Per Capita Consumption', 'Per Capita Damage','Damage SDR' ])
 
 # %%
-clr_palette = ([sns.cubehelix_palette(8)[6],sns.color_palette("inferno", 15)[-2],sns.color_palette("YlGn", 15)[10]])
+# clr_palette = ([sns.cubehelix_palette(8)[6],sns.color_palette("inferno", 15)[-2],sns.color_palette("YlGn", 15)[10]])
 
+# clr_palette = zip(df['category'].unique(), sns.crayons.values())
+clr_palette = sns.cubehelix_palette(dark=.3, light=.8, as_cmap=True)
 
 # %%
 sns.set_style("whitegrid")
 sns_plot = sns.pairplot(out_DF, hue='emdd', palette=clr_palette, vars=list(end_outcome.keys()), height=2)
-# fig.set_size_inches(30, 30)
+# fig.set_size_inches(20, 20)
 sns_plot.savefig(os.path.join(fig_path,'20k_pairplot_2300_by_emdd_range' +'.png'))
 plt.show()
 
@@ -241,10 +247,10 @@ plt.close('all')
 for outcome in outcomes.keys():
     fig,axes=plotting.lines(experiments, outcomes, outcomes_to_show=outcome, density=plotting.Density.BOXENPLOT, legend=True)
     
-    fig.set_size_inches(15, 10)
+    fig.set_size_inches(25, 10)
     
-    repeat_token=1
-    fig.savefig(os.path.join(fig_path, '1a_Time' + str(outcome) + str(repeat_token) + '.png'))
+    repeat_token=2
+    fig.savefig(os.path.join(fig_path, str(repeat_token) + 'OE_TimeSeries' + str(outcome) +  '_.png'))
     
 plt.show()
 

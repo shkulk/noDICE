@@ -48,7 +48,7 @@ ema_logging.log_to_stderr(ema_logging.INFO)
 
 
 # %%
-from dicemodel.noDICE_v3 import PyDICE
+from dicemodel.noDICE_v4 import PyDICE
 model_version = '4'
 
 import os
@@ -143,27 +143,45 @@ y = outcomes
 #  ('Consumption SDR'),
 #  ('Damage SDR')
 
+#%%
+
+# dropping first two steps (warm up) and last five steps(cooldown)
+cleaned_outcome = {}
+for key, value in outcomes.items():
+    cleaned_outcome[key] = value[:,2:-5]  
+cleaned_outcome['Welfare'].shape
+
+# %%
+# values for 2300 
+end_outcome = {}
+for key, value in outcomes.items():
+    end_outcome[key] = value[:,-1]  
+
+# np.mean(end_outcome['Damage Growth'], axis =0)
 
 # by value
 data_temp = np.amax(y['Atmospheric Temperature'], axis =1) 
 # np.max
-y_temp = data_temp > 4.0 # what causes the highest values of this outcome (>4 degrees)
+y_temp = end_outcome['Atmospheric Temperature'] > 4.0 # what causes the highest values of this outcome (>4 degrees)
 
 # by percentile
-data_welfare = np.amax(y['Welfare'], axis =1) 
+data_welfare = np.mean(y['Welfare'], axis =1) 
 # data_welfare = np.nan_to_num(data_welfare)
 # np.any(np.isnan(data_welfare))
-y_welfare = data_welfare < np.percentile(data_welfare, 80) # what causes the most number of least values (bottom 80th percentile) of welfare outcomes
+y_welfare = end_outcome['Welfare'] < np.percentile(end_outcome['Welfare'], 80) # what causes the most number of least values (bottom 80th percentile) of welfare outcomes
 
-data_undiscounted_welfare = np.amax(y['Undiscounted Period Welfare'], axis =1) 
-y_undiscounted_period_welfare = data_undiscounted_welfare < 0.0
-
+data_undiscounted_welfare = np.amax(y['Undiscounted Period Welfare'], axis=1)
+# y_undiscounted_period_welfare = data_undiscounted_welfare < 0.0
+y_undiscounted_period_welfare = end_outcome['Undiscounted Period Welfare'] > np.percentile(end_outcome['Undiscounted Period Welfare'], 20) #percentile > 20 = top 80
 
 data_dpc = np.amax(y['Per Capita Damage'], axis =1)
-y_dpc = data_dpc > np.percentile(data_dpc, 80) # what causes the highest values (top 20th percentile) of damage outcomes
+y_dpc = data_dpc > np.percentile(data_dpc, 80)  # what causes the highest values (top 20th percentile) of damage outcomes
+y_dpc = end_outcome['Per Capita Damage'] > np.percentile(end_outcome['Per Capita Damage'], 20)
 
 data_cpc = np.amax(y['Per Capita Consumption'], axis =1)
 y_cpc = data_cpc < np.percentile(data_cpc, 20) # what causes the least values (bottom 20th percentile) of consumption outcomes
+y_cpc = end_outcome['Per Capita Consumption'] < np.percentile(end_outcome['Per Capita Consumption'], 20)
+
 
 data_con_g = np.amax(y['Consumption Growth'], axis =1)
 y_con_g = data_con_g < 0.0
@@ -175,11 +193,15 @@ y_dam_g = data_dam_g < np.percentile(data_dam_g, 20)
 
 data_utility_con = np.amin(y['Utility of Consumption'], axis =1)
 # y_utility_con = data_utility_con < -3.0
-y_utility_con = data_utility_con < np.percentile(data_utility_con, 80) # what causes the least values (bottom 20th percentile) of U(C)
+y_utility_con = data_utility_con < np.percentile(data_utility_con, 20)  # what causes the least values (bottom 20th percentile) of U(C)
+y_utility_con = end_outcome['Utility of Consumption'] < np.percentile(end_outcome['Utility of Consumption'], 20)
 
 data_disutil_dam = np.amax(y['Disutility of Damage'], axis =1)
 y_disutil_dam = data_disutil_dam < 0.0
 # y_disutil_dam = data_disutil_dam < np.percentile(data_disutil_dam, 20) # what causes the lowest values (bottom 20th percentile) of V(D)
+y_disutil_dam = end_outcome['Disutility of Damage'] > np.percentile(end_outcome['Disutility of Damage'], 20) #percentile > 20 = top 80
+
+
 
 data_output = np.amax(y['Total Output'], axis = 1)
 y_output = data_output < np.percentile(data_output, 20) # what causes the least values (bottom 20th percentile) of this outcome
@@ -206,9 +228,9 @@ y_output = data_output < np.percentile(data_output, 20) # what causes the least 
 
 # the meaning of peel_alpha is the percentile of the data that is to be removed
 # The peeling alpha determines how much data is peeled off in each iteration of the algorithm. The lower the value, the less data is removed in each iteration. Controls the leniency of the algorithm, the higher the less lenient.
-
+# from ema_workbench.analysis import prim
 x = cleaned_experiments
-y = y_welfare
+y = y_undiscounted_period_welfare
 
 prim_alg = prim.Prim(x, y, threshold=0.8, peel_alpha=0.1) #0.1 
 
@@ -219,7 +241,7 @@ box1.peeling_trajectory
 box1.inspect()
 
 # %%
-box1.inspect(11, style='graph')
+box1.inspect(2, style='graph')
 # box1.inspect(21, style='graph')
 box1.show_tradeoff()
 plt.show()
@@ -270,10 +292,13 @@ prim.Prim.show_boxes(prim_alg)
 # %%
 # CART
 from ema_workbench.analysis import cart
-cart_alg = cart.CART(x,y_welfare, 0.05)
+cart_alg = cart.CART(x,y_undiscounted_period_welfare, 0.05)
 cart_alg.build_tree()
 
 
 # %%
 print (cart_alg.stats_to_dataframe())
 print(cart_alg.boxes_to_dataframe())
+cart_uWel_df = cart_alg.boxes_to_dataframe()
+
+# %%
