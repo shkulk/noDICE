@@ -117,9 +117,25 @@ cleaned_experiments = experiments.drop(labels=[l.name for l in dice_sm.uncertain
 cleaned_experiments = experiments.drop(labels= ['policy', 'scenario', 'model',] , axis=1)
 # type(cleaned_experiments)
 # cleaned_experiments
-
+x = cleaned_experiments
 #  For y: outcomes is nd-array, PRIM needs 1D
-y = outcomes
+#%%
+
+# dropping first two steps (warm up) and last five steps(cooldown)
+cleaned_outcome = {}
+for key, value in outcomes.items():
+    cleaned_outcome[key] = value[:,2:-5]  
+cleaned_outcome['Welfare'].shape
+# %%
+# values for 2300 
+end_outcome = {}
+for key, value in outcomes.items():
+    end_outcome[key] = value[:, -1]  
+
+# np.mean(end_outcome['Damage Growth'], axis =0)
+
+#%%
+y = cleaned_outcome
 
 
 # %%
@@ -129,57 +145,41 @@ y = outcomes
 
 # %%
 ## reduce by Binary classification of results
-# what range of outcome vars represents bad outcome - we want to find the contributing factors
-# ('Atmospheric Temperature'),
-#  ('Total Output'),
-#  ('Population'),
-#  ('Per Capita Consumption'),
-#  ('Consumption Growth'),
-#  ('Utility of Consumption'),
-#  ('Per Capita Damage'),
-#  ('Damage Growth'),
-#  ('Disutility of Damage'),
-#  ('Welfare'),
-#  ('Consumption SDR'),
-#  ('Damage SDR')
+# what range of outcome vars represents bad outcome - we want to find the 
 
-#%%
+######## by value
 
-# dropping first two steps (warm up) and last five steps(cooldown)
-cleaned_outcome = {}
-for key, value in outcomes.items():
-    cleaned_outcome[key] = value[:,2:-5]  
-cleaned_outcome['Welfare'].shape
+# Atmospheric Temperature
+# what causes the highest values of this outcome (> 2 degrees)
+y_temp = np.amax(y['Atmospheric Temperature'], axis =1)  > 2.0
 
-# %%
-# values for 2300 
-end_outcome = {}
-for key, value in outcomes.items():
-    end_outcome[key] = value[:,-1]  
+# Undiscounted period welfare : from graph, and equal to cases when U(C) > V(D)
+y_undiscounted_period_welfare = end_outcome['Undiscounted Period Welfare'] < 0.0
 
-# np.mean(end_outcome['Damage Growth'], axis =0)
+# Utility of Consumption
+# what causes the values  of U(C) higher than 0.5 (from the violin plot)
+y_utility_con = end_outcome['Utility of Consumption'] > 0.5
 
-# by value
-data_temp = np.amax(y['Atmospheric Temperature'], axis =1) 
-# np.max
-y_temp = end_outcome['Atmospheric Temperature'] > 4.0 # what causes the highest values of this outcome (>4 degrees)
+# Disutility of Damage
+# what causes the values  of V(D) higher than 5 (from the violin plot, U(C) range never exceeds 4)
+y_disutil_dam = end_outcome['Disutility of Damage'] > 4
 
-# by percentile
-data_welfare = np.mean(y['Welfare'], axis =1) 
-# data_welfare = np.nan_to_num(data_welfare)
-# np.any(np.isnan(data_welfare))
-y_welfare = end_outcome['Welfare'] < np.percentile(end_outcome['Welfare'], 80) # what causes the most number of least values (bottom 80th percentile) of welfare outcomes
 
-data_undiscounted_welfare = np.amax(y['Undiscounted Period Welfare'], axis=1)
-# y_undiscounted_period_welfare = data_undiscounted_welfare < 0.0
-y_undiscounted_period_welfare = end_outcome['Undiscounted Period Welfare'] > np.percentile(end_outcome['Undiscounted Period Welfare'], 20) #percentile > 20 = top 80
+###### by percentile
+# #percentile < 80 = bottom 80
 
-data_dpc = np.amax(y['Per Capita Damage'], axis =1)
-y_dpc = data_dpc > np.percentile(data_dpc, 80)  # what causes the highest values (top 20th percentile) of damage outcomes
-y_dpc = end_outcome['Per Capita Damage'] > np.percentile(end_outcome['Per Capita Damage'], 20)
+# Welfare
 
-data_cpc = np.amax(y['Per Capita Consumption'], axis =1)
-y_cpc = data_cpc < np.percentile(data_cpc, 20) # what causes the least values (bottom 20th percentile) of consumption outcomes
+y_welfare = end_outcome['Welfare'] < np.percentile(end_outcome['Welfare'], 90)
+
+
+
+# Per capita Damage
+# what causes the low number of high values of damage outcomes (thin top tail): values below top 80th percentile(i.e. apart from the most common results seen)
+y_dpc = end_outcome['Per Capita Damage'] < np.percentile(end_outcome['Per Capita Damage'], 80)
+
+# Consumption Per Capita 
+# what causes the low number of low values per capita consumption (thin bottom tail): bottom 20th percentile
 y_cpc = end_outcome['Per Capita Consumption'] < np.percentile(end_outcome['Per Capita Consumption'], 20)
 
 
@@ -191,38 +191,10 @@ y_con_g = data_con_g < 0.0
 data_dam_g = np.amax(y['Damage Growth'], axis =1)
 y_dam_g = data_dam_g < np.percentile(data_dam_g, 20)
 
-data_utility_con = np.amin(y['Utility of Consumption'], axis =1)
-# y_utility_con = data_utility_con < -3.0
-y_utility_con = data_utility_con < np.percentile(data_utility_con, 20)  # what causes the least values (bottom 20th percentile) of U(C)
-y_utility_con = end_outcome['Utility of Consumption'] < np.percentile(end_outcome['Utility of Consumption'], 20)
-
-data_disutil_dam = np.amax(y['Disutility of Damage'], axis =1)
-y_disutil_dam = data_disutil_dam < 0.0
-# y_disutil_dam = data_disutil_dam < np.percentile(data_disutil_dam, 20) # what causes the lowest values (bottom 20th percentile) of V(D)
-y_disutil_dam = end_outcome['Disutility of Damage'] > np.percentile(end_outcome['Disutility of Damage'], 20) #percentile > 20 = top 80
-
 
 
 data_output = np.amax(y['Total Output'], axis = 1)
 y_output = data_output < np.percentile(data_output, 20) # what causes the least values (bottom 20th percentile) of this outcome
-
-## verify
-
-# y_damage.shape 
-# y_temp
-# y_temp.shape
-# y['Welfare'].shape
-# np.percentile(data_welfare, 20)
-# plt.boxplot(data_welfare)
-# data_welfare
-# np.any(np.isnan(data_welfare)) # there's a NaN = division by zero somewhere
-# np.where(np.isnan(data_welfare))
-
-# data_welfare = data_welfare[~np.isnan(data_welfare)]
-
-# locating experiment
-# experiments.ix[819].to_dict()
-
 
 # %%
 
@@ -230,25 +202,33 @@ y_output = data_output < np.percentile(data_output, 20) # what causes the least 
 # The peeling alpha determines how much data is peeled off in each iteration of the algorithm. The lower the value, the less data is removed in each iteration. Controls the leniency of the algorithm, the higher the less lenient.
 # from ema_workbench.analysis import prim
 x = cleaned_experiments
-y = y_undiscounted_period_welfare
+y = y_welfare
 
-prim_alg = prim.Prim(x, y, threshold=0.8, peel_alpha=0.1) #0.1 
+prim_alg = prim.Prim(x, y, threshold=0.5, peel_alpha=0.1) #0.1 
 
 
 # %%
 box1 = prim_alg.find_box()
 box1.peeling_trajectory
-box1.inspect()
 
 # %%
-box1.inspect(2, style='graph')
-# box1.inspect(21, style='graph')
 box1.show_tradeoff()
+box1.inspect(13)
+box1.inspect(0, style='graph')
+
 plt.show()
 
+#%%
+box1.select(21)
+box1.show_pairs_scatter()
+fig = plt.gcf()
+fig.set_size_inches(12,12)
+plt.show()
+fig.savefig(os.path.join(fig_path,str(run) + '_PRIM_Uwel_box1' + '.png'))
 
 # %%
 box2 = prim_alg.find_box()
+box2.peeling_trajectory
 box2.inspect()
 box2.show_tradeoff()
 box2.inspect(49, style='graph')
@@ -258,7 +238,7 @@ box2.show_pairs_scatter()
 fig = plt.gcf()
 fig.set_size_inches(12,12)
 plt.show()
-fig.savefig(os.path.join(fig_path,'PRIM_wel_box2' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+fig.savefig(os.path.join(fig_path,str(run) + '_PRIM_Uwel_box2' + '.png'))
 
 
 # %%
@@ -292,11 +272,9 @@ prim.Prim.show_boxes(prim_alg)
 # %%
 # CART
 from ema_workbench.analysis import cart
-cart_alg = cart.CART(x,y_undiscounted_period_welfare, 0.05)
+cart_alg = cart.CART(x,y_welfare, 0.05)
 cart_alg.build_tree()
 
-
-# %%
 print (cart_alg.stats_to_dataframe())
 print(cart_alg.boxes_to_dataframe())
 cart_uWel_df = cart_alg.boxes_to_dataframe()

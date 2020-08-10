@@ -19,9 +19,9 @@ import statsmodels.api as sm
 from sklearn import preprocessing 
 import ema_workbench.em_framework.evaluators
 
-from dicemodel.noDICE_v5 import PyDICE
+from dicemodel.noDICE_v6 import PyDICE
 # from noDICE_v5 import PyDICE
-model_version = 'v5'
+model_version = 'v6'
 
 
 from dest_directories import gz_path, fig_path
@@ -55,14 +55,13 @@ if __name__ == '__main__':
                              RealParameter('pop_gr', 0.1, 0.15),
                              RealParameter('fosslim',  4000.0, 13649),
                              IntegerParameter('cback', 100, 600),
-                             IntegerParameter('VD_switch', 0, 1)
+                             RealParameter('emdd', -1.0, 0.99),
                             ]
     
     dice_sm.levers = [RealParameter('sr', 0.1, 0.5),
                       RealParameter('prtp_con',  0.001, 0.015),
-                      RealParameter('prtp_dam',  0.001, 0.015),
-                      RealParameter('emuc',  1.01, 2.00),
-                      RealParameter('emdd', -1.0, 2.00),
+                    #   RealParameter('prtp_dam',  0.001, 0.015),
+                      RealParameter('emuc',  1.01, 2.00),IntegerParameter('VD_switch', 0, 1),
                       IntegerParameter('periodfullpart', 10, 58),
                       IntegerParameter('miu_period', 10, 58)
                       ]
@@ -70,24 +69,24 @@ if __name__ == '__main__':
     dice_sm.outcomes = [
                         TimeSeriesOutcome('Atmospheric Temperature'),
                         TimeSeriesOutcome('Total Output'),
-                        TimeSeriesOutcome('Per Capita Consumption'),
-                        TimeSeriesOutcome('Consumption Growth'),
+                        # TimeSeriesOutcome('Per Capita Consumption'),
+                        # TimeSeriesOutcome('Consumption Growth'),
                         TimeSeriesOutcome('Utility of Consumption'),
-                        TimeSeriesOutcome('Per Capita Damage'),
-                        TimeSeriesOutcome('Damage Growth'),
+                        # TimeSeriesOutcome('Per Capita Damage'),
+                        # TimeSeriesOutcome('Damage Growth'),
                         TimeSeriesOutcome('Disutility of Damage'),
                         TimeSeriesOutcome('Welfare'),
-                        TimeSeriesOutcome('Undiscounted Period Welfare'),
+                        # TimeSeriesOutcome('Undiscounted Period Welfare'),
                         TimeSeriesOutcome('Consumption SDR'),
                         TimeSeriesOutcome('Damage SDR')
                         ]
 
 
 # %%
-n_scenarios = 5000
-n_policies = 50
+n_scenarios = 2000
+n_policies = 20
 
-run = 3
+run = 8
 
 # %% Sequential processing
 start = time.time()
@@ -107,15 +106,31 @@ end = time.time()
 print('Experiment time is ' + str(round((end - start)/60)) + ' mintues')
 
 # %%
-
+start = time.time()
 save_results(results, os.path.join(gz_path, str(run) + '_OE_' + str(n_scenarios) + 's_' + str(n_policies) + 'p_' + '.tar.gz'))
-
+end = time.time()
+print('Saving time is ' + str(round((end - start)/60)) + ' mintues')
 
 # %%
 results = load_results(os.path.join(gz_path,'020820_OE_1000s_20p_.tar.gz'))
 # outcomes
 #%%
 experiments, outcomes = results
+
+#%%
+# dropping first two steps (warm up) and last five steps(cooldown)
+cleaned_outcome = {}
+for key, value in outcomes.items():
+    cleaned_outcome[key] = value[:,2:-5]  
+cleaned_outcome['Welfare'].shape
+
+# %%
+# values for 2300 
+end_outcome = {}
+for key, value in outcomes.items():
+    end_outcome[key] = value[:,-1]  
+
+# np.mean(end_outcome['Damage Growth'], axis =0)
 
 #%%
 ########## Prepare outcomes as needed
@@ -136,21 +151,6 @@ rem_list = [
 ]
 for key in rem_list:
     end_outcome.pop(key) 
-
-#%%
-# dropping first two steps (warm up) and last five steps(cooldown)
-cleaned_outcome = {}
-for key, value in outcomes.items():
-    cleaned_outcome[key] = value[:,2:-5]  
-cleaned_outcome['Welfare'].shape
-
-# %%
-# values for 2300 
-end_outcome = {}
-for key, value in outcomes.items():
-    end_outcome[key] = value[:,-1]  
-
-# np.mean(end_outcome['Damage Growth'], axis =0)
 
 
 # %%
@@ -254,7 +254,7 @@ for outcome in outcomes.keys():
     
 plt.show()
 
-
+from matplotlib import axes
 # %%
 # Time series outcome grouped by policy
 

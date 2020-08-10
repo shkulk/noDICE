@@ -6,6 +6,7 @@
 # v4: increased run length (+5 time steps = 25 years) to compensate for long run behaviour. Thinking of dropping the first two time steps (wearm-up), last 5 time steps within the model itself. -- no need
 
 # v5: V(D) switch added 
+# v6: V(D) switchlocation changed to welfare calculation only, and not in V(D) calculation
 
 
 # IMPORT PACKAGES & SET PATH
@@ -94,10 +95,10 @@ class PyDICE(object):
                  # levers from Nordhaus(2008) 
                  sr=0.249,
                  prtp_con = 0.015, 
-                 prtp_dam = 0.015, 
+                 prtp_dam = 0.001, 
                  emuc = 1.45, #from nordhaus
                  emdd=-0.1,  # default equivalent to emuc to simulate Nordhaus
-                 vd_switch = 1, # V(D) switched OFF = 0
+                 vd_switch = 0, # V(D) switched OFF = 0
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
@@ -576,30 +577,36 @@ class PyDICE(object):
             # Social discount factor for disutility of damage 
         self.damage_sdf[0] = 1.00
 
-        if self.vd_switch == 0:
-            self.inst_disutil_dam[0] = 0.0
+        # Instantaneous disutility of damage
+        if self.emdd == 1.00:
+            self.inst_disutil_dam[0] = np.log(self.dpc[0])
         else:
-
-            # Instantaneous disutility of damage
-            if self.emdd == 1.00:
-                self.inst_disutil_dam[0] = np.log(self.dpc[0])
-            else:
-                self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
-            if self.inst_disutil_dam[0] < self.inst_disutil_lo:
-                self.inst_disutil_dam[0] = self.inst_disutil_lo
+            self.inst_disutil_dam[0] = (((self.dpc[0]) ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+        if self.inst_disutil_dam[0] < self.inst_disutil_lo:
+            self.inst_disutil_dam[0] = self.inst_disutil_lo
 
         # # Discounted disutility of damage
         self.disc_disutil_dam[0] = self.inst_disutil_dam[0] * self.damage_sdf[0]
 
         # Welfare function
-            # shridhar: check the whole scaling thing and verify formula
-        self.period_welfare[0] = (self.disc_util_con[0] - self.disc_disutil_dam[0]) * self.pop[0]/ 1000
-
+            # No contribution of V(D) to welfare if vd_switch = 0
+        if self.vd_switch == 0:
+        # Period Welfare term (discounted)
+            self.period_welfare[0] = self.disc_util_con[0] * self.pop[0] / 1000
+        # Period Welfare (Undiscounted)
+            # self.undiscounted_welfare =  self.inst_util_con * self.pop[0] / 1000
+    
+        else:
+        # Period Welfare term (discounted)
+            self.period_welfare[0] = (self.disc_util_con[0] - self.disc_disutil_dam[0]) * self.pop[0] / 1000            
+        # Period Welfare (Undiscounted)
+            # self.undiscounted_welfare = (self.inst_util_con - self.inst_disutil_dam) * self.pop[0] / 1000
+        
         self.welfare[0] = ((self.tstep*self.scale1*np.sum(self.period_welfare))
                         + self.scale2)
+        
         # Initializing Period Welfare (Undiscounted)
-        self.undiscounted_welfare[0] = 0.0
-        # logging.info(self, "is initialized.")
+        # self.undiscounted_welfare[0] = 0.0
         
 
         """
@@ -847,28 +854,35 @@ class PyDICE(object):
             # Social discount factor for disutility of damage            
             self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep * (t))
 
-            if self.vd_switch == 0:
-                self.inst_disutil_dam[t] = 0.0
-            else:                      
-                # Absolute period disutility
-                if (self.emdd == 1.00):
-                    self.inst_disutil_dam[t] = np.log(self.dpc[t])
-                else:
-                    self.inst_disutil_dam[t] = ((self.dpc[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
-                
-                if self.inst_disutil_dam[t] < self.inst_disutil_lo:
-                    self.inst_disutil_dam[t] = self.inst_disutil_lo
+
+            # Absolute period disutility
+            if (self.emdd == 1.00):
+                self.inst_disutil_dam[t] = np.log(self.dpc[t])
+            else:
+                self.inst_disutil_dam[t] = ((self.dpc[t] ** (1.0 - self.emdd) - 1.0)/ (1.0 - self.emdd) - 1.0)
+            
+            if self.inst_disutil_dam[t] < self.inst_disutil_lo:
+                self.inst_disutil_dam[t] = self.inst_disutil_lo
 
             # Discounted period disutility
             self.disc_disutil_dam[t] = self.inst_disutil_dam[t] * self.damage_sdf[t]
 
-            # Period Welfare term
-            self.period_welfare[t] =  (self.disc_util_con[t] - self.disc_disutil_dam[t]) * self.pop[t]/1000
+           # Period Welfare term
+            if self.vd_switch == 0:
+            # (Discounted)
+                self.period_welfare[t] = self.disc_util_con[t] * self.pop[t] / 1000
+            # (Undiscounted)
+                # self.undiscounted_welfare[t] =  self.inst_util_con[t] * self.pop[t] / 1000
+    
+            else:
+            # (Discounted)
+                self.period_welfare[t] = (self.disc_util_con[t] - self.disc_disutil_dam[t]) * self.pop[t] / 1000            
+            # (Undiscounted)
+                # self.undiscounted_welfare[t] =  (self.inst_util_con[t] - self.inst_disutil_dam[t]) * self.pop[t] / 1000
+
 
             self.welfare[t] = ((self.tstep * self.scale1 * np.sum(self.period_welfare)) + self.scale2)
-            
-            # Period Welfare (Undiscounted)
-            self.undiscounted_welfare =  (self.inst_util_con - self.inst_disutil_dam)
+
             """
             ################# POST OPTIMISATION PARAMETERS #################
             """
@@ -894,7 +908,7 @@ class PyDICE(object):
                      'Utility of Consumption': self.inst_util_con,
                      'Disutility of Damage': self.inst_disutil_dam,
                      'Welfare': self.welfare,
-                     'Undiscounted Period Welfare': self.undiscounted_welfare,
+                    #  'Undiscounted Period Welfare': self.undiscounted_welfare,
                      'Total Output': self.y,
                      'Consumption Growth': self.con_g,
                      'Damage Growth': self.dam_g,
@@ -908,7 +922,7 @@ class PyDICE(object):
                      'Utility of Consumption 2300': self.inst_util_con[58],
                      'Disutility of Damage 2300': self.inst_disutil_dam[58],
                      'Welfare 2300': self.welfare[58],
-                     'Undiscounted Period Welfare 2300': self.undiscounted_welfare[58],
+                    #  'Undiscounted Period Welfare 2300': self.undiscounted_welfare[58],
                      'Total Output 2300': self.y[58],
                      'Consumption Growth 2300': self.con_g[58],
                      'Damage Growth 2300': self.dam_g[58],

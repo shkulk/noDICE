@@ -15,8 +15,8 @@ from ema_workbench.analysis import (get_ex_feature_scores,
                                     RuleInductionType)
 
 ema_logging.log_to_stderr(level=ema_logging.INFO)
-from dicemodel.noDICE_v3 import PyDICE
-model_version = 'v4'
+# from dicemodel.noDICE_v3 import PyDICE
+# model_version = 'v4'
 
 import os
 from dest_directories import gz_path, fig_path
@@ -31,7 +31,7 @@ experiments, outcomes = results
 # %%
 TimeLine = []
 for i in range(65):
-    TimeLine.append(2010+i*5)
+    TimeLine.append(2020+i*5)
 TimeLine
 outcomes["TIME"] = np.array([TimeLine])
 # outcomes
@@ -39,22 +39,15 @@ outcomes["TIME"] = np.array([TimeLine])
 
 # %%
 # x = numpy.delete(x, (0), axis=0)
-clean_y = {}
-y = outcomes
-for key, value in y.items():
-    for i in range (5):
-        clean_y[key] = np.delete(y[key], (), axis = 1)
-# y['Welfare'] = np.delete(y['Welfare'], (0,1), axis = 1)
-clean_y['Welfare'].shape
-
-
-# %%
+for key, value in outcomes.items():
+    outcomes[key] = value[:,2:-5]  
 outcomes['Welfare'].shape
 
-
 # %%
-# Undiscuonted Period Welfare
-y = outcomes['Undiscounted Period Welfare']
+#  Welfare
+from ema_workbench.analysis import feature_scoring
+
+y = outcomes['Welfare']
 all_scores = []
 
 # we only want to show those uncertainties that are in the top 5
@@ -155,7 +148,7 @@ fig, ax = plt.subplots()
 sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
-fig.savefig(os.path.join(fig_path,'Feature_scores_Wel' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_Wel' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
 
 
 # %%
@@ -191,7 +184,7 @@ sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
 
-fig.savefig(os.path.join(fig_path,'Feature_scores_UtilC' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_UtilC' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
 
 
 # %%
@@ -219,4 +212,7 @@ sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
 
-fig.savefig(os.path.join(fig_path,'Feature_scores_VD' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_VD' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+
+
+# %%

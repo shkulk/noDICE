@@ -19,15 +19,8 @@ import statsmodels.api as sm
 from sklearn import preprocessing 
 import ema_workbench.em_framework.evaluators
 
-from dicemodel.noDICE_v4 import PyDICE
-# from noDICE_v4 import PyDICE
-model_version = 'v4'
-
-
 from dest_directories import gz_path, fig_path
 
-
-# %%
 from ema_workbench import (perform_experiments, Model, Policy, Scenario, ReplicatorModel, RealParameter, IntegerParameter, TimeSeriesOutcome, ScalarOutcome, ArrayOutcome, Constant, ema_logging, SequentialEvaluator, MultiprocessingEvaluator, IpyparallelEvaluator)
 from ema_workbench import save_results, load_results
 # from ema_workbench.analysis import prim, cart
@@ -39,6 +32,11 @@ ema_logging.log_to_stderr(ema_logging.INFO)
 
 
 # %%
+from dicemodel.noDICE_v5 import PyDICE
+# from noDICE_v4 import PyDICE
+model_version = 'v5'
+
+#%%
 
 if __name__ == '__main__':
     ema_logging.log_to_stderr(ema_logging.INFO)
@@ -48,27 +46,27 @@ if __name__ == '__main__':
     dice_sm = Model('dicesmEMA', function=model)
     
     dice_sm.uncertainties = [IntegerParameter('t2xco2_index', 0, 999),
-                             IntegerParameter('t2xco2_dist',0,2),
-                             IntegerParameter('fdamage', 0, 2),
+                            #  IntegerParameter('t2xco2_dist',0,2),
+                            #  IntegerParameter('fdamage', 0, 2),
                              RealParameter('tfp_gr',  0.07, 0.09),
                              RealParameter('sigma_gr', -0.012, -0.008),
                              RealParameter('pop_gr', 0.1, 0.15),
                              RealParameter('fosslim',  4000.0, 13649),
-                            #  IntegerParameter('cback', 100, 600)
+                             IntegerParameter('cback', 100, 600),
+                             IntegerParameter('vd_switch', 0, 1)
                             ]
-    
-    dice_sm.levers = [#RealParameter('sr', 0.2, 0.3),
-                    #   RealParameter('prtp_con',  0.001, 0.015),
-                      RealParameter('prtp_dam',  0.001, 0.015),
-                    #   RealParameter('emuc',  1.01, 2.00),
-                      RealParameter('emdd', -1.0, 0.99),
+
+    dice_sm.levers = [RealParameter('sr', 0.1, 0.5),
+                      RealParameter('prtp_con', 0.001, 0.015),
+                      RealParameter('prtp_dam', 0.001, 0.015),
+                      RealParameter('emdd', -1.0, 2.00),
                       IntegerParameter('periodfullpart', 10, 58),
-                    #   IntegerParameter('miu_period', 10, 58)
+                      IntegerParameter('miu_period', 10, 58)
                       ]
     
-    dice_sm.outcomes = [TimeSeriesOutcome('Atmospheric Temperature'),
+    dice_sm.outcomes = [
+                        TimeSeriesOutcome('Atmospheric Temperature'),
                         TimeSeriesOutcome('Total Output'),
-                        # TimeSeriesOutcome('Population'),
                         TimeSeriesOutcome('Per Capita Consumption'),
                         TimeSeriesOutcome('Consumption Growth'),
                         TimeSeriesOutcome('Utility of Consumption'),
@@ -79,56 +77,41 @@ if __name__ == '__main__':
                         TimeSeriesOutcome('Undiscounted Period Welfare'),
                         TimeSeriesOutcome('Consumption SDR'),
                         TimeSeriesOutcome('Damage SDR')
-
-                        ]
-    dice_sm.outcomes = [TimeSeriesOutcome('Atmospheric Temperature'),
-                        # TimeSeriesOutcome('Per Capita Consumption'),
-                        TimeSeriesOutcome('Consumption Growth'),
-                        TimeSeriesOutcome('Utility of Consumption'),
-                        # TimeSeriesOutcome('Per Capita Damage'),
-                        # TimeSeriesOutcome('Damage Growth'),
-                        TimeSeriesOutcome('Disutility of Damage'),
-                        TimeSeriesOutcome('Welfare'),
-                        TimeSeriesOutcome('Undiscounted Period Welfare'),
-                        TimeSeriesOutcome('Consumption SDR'),
-                        # TimeSeriesOutcome('Damage SDR')
-
                         ]
 
 
 # %%
 n_scenarios = 1000
-n_policies = 20
-
-# %%
-start = time.time()
-with SequentialEvaluator(dice_sm) as evaluator:
-    results = evaluator.perform_experiments(scenarios=n_scenarios, policies=n_policies)
-end = time.time()
-
-print('Experiment time is ' + str(round((end - start)/60)) + ' mintues')
+n_policies = 25
+run = 5
 
 
 # %%
+
 start = time.time()
 with MultiprocessingEvaluator(dice_sm, n_processes=8) as evaluator:
-    results = evaluator.perform_experiments(scenarios=n_scenarios, policies=n_policies)
+    experiments, outcomes = evaluator.perform_experiments(scenarios=n_scenarios, policies=n_policies)
 end = time.time()
 
 print('Experiment time is ' + str(round((end - start)/60)) + ' mintues')
 
-experiments, outcomes = results
+# %%
+results = experiments, outcomes
+
+start = time.time()
+save_results(results, os.path.join(gz_path, str(run) + '_Nord_OE_' + str(n_scenarios) + 's_' + str(n_policies) + 'p_' + '.tar.gz'))
+end = time.time()
+
+print('Saving time is ' + str(round((end - start)/60)) + ' mintues')
 
 
 # %%
-
-save_results(results, os.path.join(gz_path, 'Nordhaus_OE' + str(n_scenarios) + 's_' + str(n_policies) + 'p_' + '.tar.gz'))
-
-
-# %%
-results = load_results(os.path.join(gz_path,'1a_OE_1000s_20p_.tar.gz'))
+results = load_results(os.path.join(gz_path,'5_Nord_OE_1000s_25p_.tar.gz'))
 experiments, outcomes = results
 # outcomes
+
+#%%
+
 
 
 # %%
@@ -142,10 +125,6 @@ plt.show()
 fig.savefig(os.path.join(fig_path,'Nordhaus_OE' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
 
 # %%
-grouping_specifiers = {'a':1, 'b':2, 'c':3}
-grouping_labels = sorted(grouping_specifiers.keys())
-grouping_specifiers = [grouping_specifiers[key] for key in
-                                       grouping_labels]
 # grouping_specifiers
 low = np.min(experiments['emdd'])
 high = np.max(experiments['emdd'])
@@ -179,7 +158,7 @@ for outcome in outcomes.keys():
     fig,axes=plotting.lines(experiments, outcomes, outcomes_to_show=outcome, density=plotting.Density.BOXENPLOT, legend=True)
     # fig.tight_layout()
     fig.set_size_inches(15,10)
-    fig.savefig(os.path.join(fig_path,'Nordhaus_TimeSeries' + str(outcome) + '.png'))
+    fig.savefig(os.path.join(fig_path,'Run5_Nordhaus_TimeSeries' + str(outcome) + '.png'))
 plt.show()
 
 #%%
