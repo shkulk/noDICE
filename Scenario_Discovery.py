@@ -31,8 +31,10 @@ model = PyDICE()
 dice_sm = Model('dicesmEMA', function=model)
 
 #%%
-dice_opt = pd.read_excel("DICE2013R.xlsm" ,sheet_name = "Opttax", index_col = 0)
-# print("XLRM", flush=True)
+dice_opt = pd.read_excel("DICE2013R.xlsm", sheet_name="Opttax", index_col=0)
+
+
+
 #%%
 dice_sm.uncertainties = [IntegerParameter('t2xco2_index', 0, 999),
                             #  IntegerParameter('t2xco2_dist',0,2),
@@ -49,7 +51,7 @@ dice_sm.levers = [RealParameter('sr', 0.1, 0.5),
                       RealParameter('prtp_con',  0.001, 0.015),
                     #   RealParameter('prtp_dam',  0.001, 0.015),
                       RealParameter('emuc', 1.01, 2.00),
-                    #   IntegerParameter('vd_switch', 0, 1),
+                      IntegerParameter('vd_switch', 0, 1),
                       IntegerParameter('periodfullpart', 10, 58),
                       IntegerParameter('miu_period', 10, 58)
                       ]

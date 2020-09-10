@@ -326,7 +326,7 @@ plt.show()
 
 # %%
 outcome = 'Disutility of Damage'
-fig,axes=plotting.lines(experiments, outcomes, outcomes_to_show=outcome, density=plotting.Density.BOXENPLOT, group_by='vd_switch', grouping_specifiers= grouping_specifiers_VD,legend=True)
+fig,axes=plotting.envelopes(experiments, outcomes, outcomes_to_show=outcome, density=plotting.Density.BOXENPLOT, group_by='vd_switch', grouping_specifiers= grouping_specifiers_VD,legend=True)
     
 
 fig.set_size_inches(25, 10)

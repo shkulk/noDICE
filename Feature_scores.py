@@ -23,7 +23,7 @@ from dest_directories import gz_path, fig_path
 
 
 # %%
-experiments, outcomes = load_results(os.path.join(gz_path,'v4_1a_OE_sr100s_20p_.tar.gz'))
+experiments, outcomes = load_results(os.path.join(gz_path,'32_OE2000s_50p_.tar.gz'))
 experiments = experiments.drop(['model', 'policy'], axis=1)
 #%%
 experiments, outcomes = results
@@ -69,6 +69,8 @@ fig, ax = plt.subplots()
 sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
+take = 2
+fig.savefig(os.path.join(fig_path,str(run) + '_Feature_scores_Wel' + str(n_scenarios) + 's_' + str(n_policies) + 'p_take_' + str(take) + '.png'))
 
 # %%
 # Total Output
@@ -94,7 +96,8 @@ fig, ax = plt.subplots()
 sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
-
+take = 2
+fig.savefig(os.path.join(fig_path,str(run) + '_Feature_scores_Output' + str(n_scenarios) + 's_' + str(n_policies) + 'p_take_' + str(take) + '.png'))
 
 # %%
 # Consumption Growth
@@ -148,7 +151,8 @@ fig, ax = plt.subplots()
 sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
-fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_Wel' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
+take = 2
+fig.savefig(os.path.join(fig_path,str(run) + '_Feature_scores_Wel' + str(n_scenarios) + 's_' + str(n_policies) + 'p_take_' + str(take) + '.png'))
 
 
 # %%
@@ -184,8 +188,8 @@ sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
 
-fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_UtilC' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
-
+take = 2
+fig.savefig(os.path.join(fig_path,str(run) + '_Feature_scores_UtilC' + str(n_scenarios) + 's_' + str(n_policies) + 'p_take_' + str(take) + '.png'))
 
 # %%
 #  Disutility of Damage
@@ -212,7 +216,7 @@ sns.heatmap(all_scores, ax=ax, cmap='viridis', annot=True)
 fig.set_size_inches(10,10)
 plt.show()
 
-fig.savefig(os.path.join(fig_path,str(run) + 'Feature_scores_VD' + str(n_scenarios) + 's' + str(n_policies) + 'p' + '.png'))
-
+take = 2
+fig.savefig(os.path.join(fig_path,str(run) + '_Feature_scores_VD' + str(n_scenarios) + 's_' + str(n_policies) + 'p_take_' + str(take) + '.png'))
 
 # %%
