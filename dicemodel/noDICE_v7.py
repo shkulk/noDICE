@@ -29,7 +29,7 @@ class PyDICE(object):
         steps: amount of years looking into the future
         model_specification: model specification for 'EMA_disutility' or 'Validation'  
     """
-    def __init__(self, tstep=5, steps=65, model_specification="EMA_disutility"):
+    def __init__(self, tstep=5, steps=65, model_specification="VD"):
         self.tstep = tstep					# (in years)
         self.steps = steps
         self.startYear = 2010
@@ -42,45 +42,45 @@ class PyDICE(object):
             self.tperiod.append((i*self.tstep)+self.startYear)
 
 
-        with open(os.path.join(myfolder, 'ecs_dist_v4.json')) as f:
-            d = json.load(f)
+        # with open(os.path.join(myfolder, 'ecs_dist_v4.json')) as f:
+        #     d = json.load(f)
         
-        #creating a list from the dist of t2xC02
-        np.random.seed(10)
+        # #creating a list from the dist of t2xC02
+        # np.random.seed(10)
 
-        minb = 0
-        maxb = 20
-        nsamples = 1000
+        # minb = 0
+        # maxb = 20
+        # nsamples = 1000
 
-        samples_norm = np.zeros((0,))
-        while samples_norm.shape[0] < nsamples:
-            samples = (norm.rvs(d['norm'][0], d['norm'][1],nsamples))
-            accepted = samples[(samples >= minb) & (samples <= maxb)]
-            samples_norm = np.concatenate((samples_norm, accepted), axis=0)
-        samples_norm = samples_norm[:nsamples]
+        # samples_norm = np.zeros((0,))
+        # while samples_norm.shape[0] < nsamples:
+        #     samples = (norm.rvs(d['norm'][0], d['norm'][1],nsamples))
+        #     accepted = samples[(samples >= minb) & (samples <= maxb)]
+        #     samples_norm = np.concatenate((samples_norm, accepted), axis=0)
+        # samples_norm = samples_norm[:nsamples]
 
-        samples_lognorm = np.zeros((0,))
-        while samples_lognorm.shape[0] < nsamples:
-            samples = (lognorm.rvs(d['lognorm'][0], d['lognorm'][1], 
-                                   d['lognorm'][2],nsamples))
-            accepted = samples[(samples >= minb) & (samples <= maxb)]
-            samples_lognorm = np.concatenate((samples_lognorm, accepted), axis=0)
-        samples_lognorm = samples_lognorm[:nsamples]
+        # samples_lognorm = np.zeros((0,))
+        # while samples_lognorm.shape[0] < nsamples:
+        #     samples = (lognorm.rvs(d['lognorm'][0], d['lognorm'][1], 
+        #                            d['lognorm'][2],nsamples))
+        #     accepted = samples[(samples >= minb) & (samples <= maxb)]
+        #     samples_lognorm = np.concatenate((samples_lognorm, accepted), axis=0)
+        # samples_lognorm = samples_lognorm[:nsamples]
 
-        samples_cauchy = np.zeros((0,))
-        while samples_cauchy.shape[0] < nsamples:
-            samples = (cauchy.rvs(d['cauchy'][0],d['cauchy'][1],nsamples))
-            accepted = samples[(samples >= minb) & (samples <= maxb)]
-            samples_cauchy = np.concatenate((samples_cauchy, accepted), axis=0)
-        samples_cauchy = samples_cauchy[:nsamples]
+        # samples_cauchy = np.zeros((0,))
+        # while samples_cauchy.shape[0] < nsamples:
+        #     samples = (cauchy.rvs(d['cauchy'][0],d['cauchy'][1],nsamples))
+        #     accepted = samples[(samples >= minb) & (samples <= maxb)]
+        #     samples_cauchy = np.concatenate((samples_cauchy, accepted), axis=0)
+        # samples_cauchy = samples_cauchy[:nsamples]
 
         # extend array with the deterministic value of the nordhaus
 
-        samples_norm = np.append(samples_norm, 2.9)
-        samples_lognorm = np.append(samples_lognorm, 2.9)
-        samples_cauchy = np.append(samples_cauchy, 2.9)
+        # samples_norm = np.append(samples_norm, 2.9)
+        # samples_lognorm = np.append(samples_lognorm, 2.9)
+        # samples_cauchy = np.append(samples_cauchy, 2.9)
         
-        self.samples_t2xco2 = [samples_norm, samples_lognorm, samples_cauchy]
+        # self.samples_t2xco2 = [samples_norm, samples_lognorm, samples_cauchy]
         
     def __call__(self,
                  # uncertainties from Nordhaus(2008)
@@ -198,11 +198,10 @@ class PyDICE(object):
         """
         ############################# LEVERS ###############################
         """
-        # if (self.model_specification == 'EMA_disutility'):
+        # if (self.model_specification == 'VD'):
         self.miu = np.zeros((self.steps,))
         # else:
-        #     DICE_OPT = pd.read_excel("DICE2013R.xlsm", sheet_name="Opttax",
-        #                              index_col=0)
+        #     DICE_OPT = pd.read_excel("DICE2013R.xlsm", sheet_name="Opttax", index_col=0)
         #     self.miu = np.array(DICE_OPT.iloc[133])
         # Lever: Savings rate
         self.s = np.zeros((self.steps,))
@@ -225,7 +224,7 @@ class PyDICE(object):
         # Initial emissions control rate for base case 2015
         self.miu0 = 0.03
         self.miu[0] = self.miu0
-        # if self.model_specification == "EMA_disutility":
+        # if self.model_specification == "VD":
         #     self.miu[0] = self.miu0        
         self.miu_period = miu_period
 
@@ -757,11 +756,11 @@ class PyDICE(object):
 
             # Emission Control rate
 
-            if self.model_specification == 'EMA_disutility':
-                if t >= self.miu_period:
-                    self.miu[t] = self.limmiu
-                else:
-                    self.miu[t] = self.limmiu * t/self.miu_period + self.miu[0]
+            # if self.model_specification == 'VD':
+            if t >= self.miu_period:
+                self.miu[t] = self.limmiu
+            else:
+                self.miu[t] = self.limmiu * t/self.miu_period + self.miu[0]
             
 
             

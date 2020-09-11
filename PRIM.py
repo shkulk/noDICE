@@ -20,6 +20,7 @@ from IPython import get_ipython
 # %%
 
 import time
+import copy
 get_ipython().run_line_magic('matplotlib', 'inline')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,28 +101,29 @@ if __name__ == '__main__':
 
 
 # %%
+n_scenarios = 100000
+n_policy = 1
+run = 'run_34_NordOE'
 # n_scenarios = 2000
 # n_policies = 50
-n_scenarios = 100000
-run = 'run_34_NordOE'
+# run = '36_OE'
 
 
 # %%
 ## Load results
-results = load_results(os.path.join(gz_path,'run_34_NordOE_v7_100000s_.tar.gz'))
+results = load_results(os.path.join(gz_path,'run_35_NordOE_v7_100000s_.tar.gz'))
 experiments, outcomes = results
 
 
 # %%
-# for x: Clean experiments (keep only levers, remove policy, scenario, model columns)
+# Clean experiments 
+# (keep only levers, remove policy, scenario, model columns)
 cleaned_experiments = experiments.drop(labels=[l.name for l in dice_sm.uncertainties], axis=1)
 cleaned_experiments = experiments.drop(labels= ['policy', 'model',] , axis=1)
-# type(cleaned_experiments)
-# cleaned_experiments
 x = cleaned_experiments
 #  For y: outcomes is nd-array, PRIM needs 1D
 #%%
-
+# Clean outcomes
 # dropping first two steps (warm up) and last five steps(cooldown)
 cleaned_outcome = {}
 for key, value in outcomes.items():
@@ -136,8 +138,8 @@ for key, value in outcomes.items():
 # np.mean(end_outcome['Damage Growth'], axis =0)
 
 #%%
-y = cleaned_outcome
-
+y = copy.deepcopy(cleaned_outcome)
+y_end = copy.deepcopy(end_outcome)
 
 # %%
 # experiments_np = experiments.to_records()
@@ -160,9 +162,11 @@ y_temp = np.amax(y['Atmospheric Temperature'], axis =1)  > 2.0
 y_utility_con = end_outcome['Utility of Consumption'] > 0.5
 #%%
 # Disutility of Damage
-# what causes the values  of V(D) higher than 5 (from the violin plot, U(C) range never exceeds 4)
-y_disutil_dam10 = end_outcome['Disutility of Damage'] > np.percentile(end_outcome['Disutility of Damage'], 10)
-# y_disutil_dam = end_outcome['Disutility of Damage'] < np.percentile(end_outcome['Disutility of Damage'], 10)
+
+data_disutil_dam = np.max(cleaned_outcome['Disutility of Damage'], axis = 1)
+# y_disutil_dam_top20 = data_disutil_dam > np.percentile(data_disutil_dam, 80)
+y_disutil_dam_gr3 = data_disutil_dam > 3
+# y_disutil_dam10 = end_outcome['Disutility of Damage'] > np.percentile(end_outcome['Disutility of Damage'], 10)
 
 ###### by percentile
 # #percentile < 80 = bottom 80
@@ -174,6 +178,9 @@ y_welfare10 = end_outcome['Welfare'] < np.percentile(end_outcome['Welfare'], 10)
 #%%
 
 # Per capita Damage
+data_damage = np.amax(y['Per Capita Damage'], axis=1)
+y_dpc5 = data_damage < np.percentile(data_damage, 5)
+#%%
 # what causes the low number of high values of damage outcomes (thin top tail): values below top 80th percentile(i.e. apart from the most common results seen)
 y_dpc = end_outcome['Per Capita Damage'] < np.percentile(end_outcome['Per Capita Damage'], 10)
 #%%
@@ -186,19 +193,22 @@ data_con_g = np.amax(y['Consumption Growth'], axis =1)
 y_con_g = data_con_g < 0.0
 # y_con_g = data_con_g < np.percentile(data_con_g, 20) # what causes the least (bottom 20th percentile) of this outcome
 # np.any(data_con_g)
-
-data_output = np.amax(y['Total Output'], axis = 1)
-y_output = data_output < np.percentile(data_output, 20) # what causes the least values (bottom 20th percentile) of this outcome
+#%%
+# data_output = y_end['Total Output']
+data_output = np.amax(y['Total Output'], axis=1)
+#%%
+y_output_bottom20 = data_output < np.percentile(data_output, 20) # what causes the least values (bottom 20th percentile) of this outcome
 
 # %%
+
+x = cleaned_experiments
+y = y_disutil_dam_gr3
+
+prim_alg = prim.Prim(x, y, threshold=0.5, peel_alpha=0.1) #0.1 
 
 # the meaning of peel_alpha is the percentile of the data that is to be removed
 # The peeling alpha determines how much data is peeled off in each iteration of the algorithm. The lower the value, the less data is removed in each iteration. Controls the leniency of the algorithm, the higher the less lenient.
 # from ema_workbench.analysis import prim
-x = cleaned_experiments
-y = y_disutil_dam10
-
-prim_alg = prim.Prim(x, y, threshold=0.5, peel_alpha=0.1) #0.1 
 
 
 # %%
@@ -207,9 +217,9 @@ box1.peeling_trajectory
 #%%
 box1.show_tradeoff()
 # %%
-box1.inspect(1)
+box1.inspect(19)
 #%%
-box1.inspect(2, style='graph')
+box1.inspect(22, style='graph')
 plt.show()
 
 #%%
@@ -274,3 +284,4 @@ print(cart_alg.boxes_to_dataframe())
 cart_uWel_df = cart_alg.boxes_to_dataframe()
 
 # %%
+dice_sm.constants
