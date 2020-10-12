@@ -9,6 +9,8 @@
 # v6: V(D) switch location changed to welfare calculation only, and not in V(D) calculation, SCC added
 # v7: t2xco2 = 2.9 fixed
 # v7.2: V(D) switch location added back to V(D) calculation as well, in addition to welfare, because pairsplot shows meaningless outcomes with v(D) switch
+# v7.3: 16/9/20. SCC initial value is set (self.scc[0])
+# v7.4: 18/9/20. Added Pre-processed outcomes for Directed Search, changed time index for 2300 output return from 58 to 60
 
 
 # IMPORT PACKAGES & SET PATH
@@ -152,6 +154,9 @@ class PyDICE(object):
         self.period_welfare = np.zeros((self.steps,))
         self.welfare = np.zeros((self.steps,))
         self.undiscounted_welfare = np.zeros((self.steps,))
+
+        self.welfare_utility = np.zeros((self.steps,))
+        self.welfare_disutility = np.zeros((self.steps,))
         self.cprice = np.zeros((self.steps,))
         self.ccatot = np.zeros((self.steps,))
         self.scc = np.zeros((self.steps,))
@@ -270,7 +275,7 @@ class PyDICE(object):
         # https://climateanalytics.org/briefings/ratification-tracker/ (0.8875)
         self.partfract2010 = 1
 
-        # raction of emissions under control at full time
+        # fraction of emissions under control at full time
         self.partfractfull = 1.0
 
         # Decline rate of decarbonization (per period)
@@ -614,7 +619,14 @@ class PyDICE(object):
         
         # Initializing Period Welfare (Undiscounted)
         # self.undiscounted_welfare[0] = 0.0
+
+        self.welfare_utility[0] = ((self.tstep * self.scale1 * np.sum(self.disc_util_con[0] * self.pop[0] / 1000)) + self.scale2)
+
+        self.welfare_disutility[0] = ((self.tstep * self.scale1 * np.sum(self.disc_disutil_dam[0] * self.pop[0] / 1000)) + self.scale2)
         
+        ############### Initial SCC ##############
+
+        self.scc[0] = -1000*self.e[0]/(self.c[0])
 
         """
         ####################################################################
@@ -896,12 +908,17 @@ class PyDICE(object):
 
             self.welfare[t] = ((self.tstep * self.scale1 * np.sum(self.period_welfare)) + self.scale2)
 
+            self.welfare_utility[t] = ((self.tstep * self.scale1 * np.sum(self.disc_util_con[t] * self.pop[t] / 1000)) + self.scale2)
+
+            self.welfare_disutility[t] = ((self.tstep * self.scale1 * np.sum(self.disc_disutil_dam[t] * self.pop[t] / 1000)) + self.scale2)
+
+
             """
             ################# POST OPTIMISATION PARAMETERS #################
             """
             ## Endogenous dynamic SCC
 
-            self.scc[t] = -1000*self.e[t]/(.00001+self.c[t])
+            self.scc[t] = -1000*self.e[t]/(self.c[t])
 
             # self.atfrac[t] = ((self.mat[t]-588)/(self.ccatot[t]+.000001))
 
@@ -931,20 +948,25 @@ class PyDICE(object):
                      'Damage SDR': self.sdr_dam,
                      'SCC' : self.scc,
 
-                     'Atmospheric Temperature 2300': self.temp_atm[58],
-                     'Per Capita Damage 2300': self.dpc[58],
-                     'Per Capita Consumption 2300': self.cpc[58],
-                     'Population 2300': self.pop[58],
-                     'Utility of Consumption 2300': self.inst_util_con[58],
-                     'Disutility of Damage 2300': self.inst_disutil_dam[58],
-                     'Welfare 2300': self.welfare[58],
-                    #  'Undiscounted Period Welfare 2300': self.undiscounted_welfare[58],
-                     'Total Output 2300': self.y[58],
-                     'Consumption Growth 2300': self.con_g[58],
-                     'Damage Growth 2300': self.dam_g[58],
-                     'Consumption SDR 2300': self.sdr_con[58],
-                     'Damage SDR 2300': self.sdr_dam[58],
-                     'Mean SCC 2300': np.mean(self.scc)
+                     'Atmospheric Temperature 2300': self.temp_atm[60],
+                     'Per Capita Damage 2300': self.dpc[60],
+                     'Per Capita Consumption 2300': self.cpc[60],
+                     'Population 2300': self.pop[60],
+                     'Utility of Consumption 2300': self.inst_util_con[60],
+                     'Disutility of Damage 2300': self.inst_disutil_dam[60],
+                     'Welfare 2300': self.welfare[60],
+                    #  'Undiscounted Period Welfare 2300': self.undiscounted_welfare[60],
+                     'Total Output 2300': self.y[60],
+                     'Consumption Growth 2300': self.con_g[60],
+                     'Damage Growth 2300': self.dam_g[60],
+                     'Consumption SDR 2300': self.sdr_con[60],
+                     'Damage SDR 2300': self.sdr_dam[60],
+
+                    # Added Pre-processed outcomes for Directed Search
+                     'Mean SCC 2300': np.mean(self.scc),
+                     'Mean Atmospheric Temperature': np.mean(self.temp_atm),
+                     'Welfare Discounted Utility Component 2300': self.welfare_utility[60],
+                     'Welfare Discounted Disutility Component 2300': self.welfare_disutility[60], 
 
                                         }
 

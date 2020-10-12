@@ -284,4 +284,11 @@ print(cart_alg.boxes_to_dataframe())
 cart_uWel_df = cart_alg.boxes_to_dataframe()
 
 # %%
-dice_sm.constants
+# dice_sm.constants
+# ema_workbench.analysis.kde_over_time()
+
+# ema_workbench.analysis.lines()
+
+# ema_workbench.analysis.plotting_util
+
+# perform_experiments()
