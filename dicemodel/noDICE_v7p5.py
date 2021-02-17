@@ -13,6 +13,7 @@
 # v7.4: 18/9/20. Added Pre-processed outcomes for Directed Search, changed time index for 2300 output return from 58 to 60
 # v7.5: 20/9/20. Changed utility outcomes from undiscounted to discounted, added SCC scaling paramter
 # v7.6: Added separate undicounted U(C) and V(D) just so it can be accessed
+# v8: exogenize discount rates
 
 
 # IMPORT PACKAGES & SET PATH
@@ -102,9 +103,11 @@ class PyDICE(object):
                  sr=0.249,
                  prtp_con = 0.015, 
                  prtp_dam = 0.00000000001, # close to zero, not zero to avoid division by zero
+                 prtp = 0.015,
                  emuc = 1.45, #from nordhaus
-                 emdd=-0.55,  # (1-0.45) default equivalent to emuc in  Nordhaus optimum
+                 emdd =-0.55,  # (1-0.45) default equivalent to emuc in  Nordhaus optimum
                  vd_switch = 0, # 0 = V(D) switched OFF 
+                 endo_sdr_switch = 0, # 0 = switched off, only PRTP used for dscounting  
                  periodfullpart=21,
                  miu_period=29, #17
                  **kwargs):
@@ -149,6 +152,7 @@ class PyDICE(object):
         self.sdr_dam = np.zeros((self.steps,))
         self.consumption_sdf = np.zeros((self.steps,))
         self.damage_sdf = np.zeros((self.steps,))
+        self.pure_sdf = np.zeros((self.steps,))
         self.inst_util_con = np.zeros((self.steps,))
         self.disc_util_con = np.zeros((self.steps,))
         self.inst_disutil_dam = np.zeros((self.steps,))
@@ -213,9 +217,12 @@ class PyDICE(object):
         # Lever: Savings rate
         self.s = np.zeros((self.steps,))
 
- # Savings rate (optlrsav = 0.2582781457) from the control file
+        # Savings rate (optlrsav = 0.2582781457) from the control file
         self.sr = sr
        
+       # Initial pure rate of time preference for consumption(0.015)
+        self.prtp = prtp
+
         # Initial pure rate of time preference for consumption(0.015)
         self.prtp_con = prtp_con
 
@@ -234,6 +241,9 @@ class PyDICE(object):
         # if self.model_specification == "VD":
         #     self.miu[0] = self.miu0        
         self.miu_period = miu_period
+
+        # Endogenous discounting switch
+        self.endo_sdr_switch = endo_sdr_switch
 
         """
         ##################### ECONOMIC INITIAL VALUES ######################
@@ -839,18 +849,27 @@ class PyDICE(object):
             # U(C) and V(D) with endogenous discounting
             # period contribution to welfare outcome
             ############################################
-            
+
+            # Exdogenous social discount factor based on PRTP (when endo_sdr_switch = 0)
+            self.pure_sdf = (1.0 /((1.0 + self.prtp))**(self.tstep * (t)))
+
             ## Utility of comsumption U(C)
             # Per capita consumption growth rate
             self.con_g[t] = (self.cpc[t] - self.cpc[t-1])/ self.cpc[t-1]
             
+
             # Endogenous social discount rate for utility of consumption
             self.sdr_con[t] = (self.prtp_con + (self.emuc * self.con_g[t]))
             if (self.sdr_con[t] < self.sdr_con_lo):
                 self.sdr_con[t] = self.sdr_con_lo
             
             # Social discount Factor for Utility of Consumption 
-            self.consumption_sdf[t] = (1.0 /((1.0 + self.sdr_con[t]))**(self.tstep * (t)))
+            
+            # Endogenous Discounting switch
+            if endo_sdr_switch == 0:
+                self.consumption_sdf[t] = self.pure_sdf
+            else:
+                self.consumption_sdf[t] = (1.0 /((1.0 + self.sdr_con[t]))**(self.tstep * (t)))
             
             # Absolute period utility
             if (self.emuc == 1.00):
@@ -879,9 +898,12 @@ class PyDICE(object):
                     self.sdr_dam[t] = self.sdr_dam_lo
                 
                 # Social discount factor for disutility of damage            
-                self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep * (t))
-
-
+                # Endogenous Discounting switch
+                if endo_sdr_switch == 0:
+                    self.damage_sdf[t] = self.pure_sdf
+                else:
+                    self.damage_sdf[t] = (1.0 /(1.0 + self.sdr_dam[t]))**(self.tstep * (t))
+                
                 # Absolute period disutility
                 if (self.emdd == 1.00):
                     self.inst_disutil_dam[t] = np.log(self.dpc[t])
@@ -973,6 +995,11 @@ class PyDICE(object):
                      'Mean Atmospheric Temperature': np.mean(self.temp_atm),
                     #  'Welfare Discounted Utility Component 2300': self.welfare_utility[60],
                     #  'Welfare Discounted Disutility Component': self.welfare_disutility[60], 
+
+                    # added savings rate tracking outputs
+                    # 'Savings Rate': self.s,
+                    'Period Investment': self.i,
+                    'Capital Stock': self.k
 
                                         }
 

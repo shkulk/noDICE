@@ -9,6 +9,9 @@ import os
 os.chdir(os.getcwd())
 # pydice_folder = os.path.dirname(os.getcwd()) + "\\06_Code"
 # sys.path.insert(1, pydice_folder)
-gz_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/results/gz_files'
-fig_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/results/figures'
-model_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/noDICE'
+# gz_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/results/gz_files'
+gz_path = 'U:/Work/Projects/Macroeconomic_model/noDICE_results/gz_files'
+# fig_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/results/figures'
+fig_path = 'U:/Work/Projects/Macroeconomic_model/noDICE_results/figures'
+# model_path = 'E:/Year_2_Quarter_4/Thesis/06_Code/noDICE'
+model_path = 'U:/Work/Projects/Macroeconomic_model/noDICE'
